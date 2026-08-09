@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import * as s from "@/db/schema";
-import { assertChildren, log, text } from "@/lib/action-helpers";
+import { assertChildren, assertMembers, log, text } from "@/lib/action-helpers";
 import { auth } from "@/lib/auth";
 import { authOrganizationIdForSpace, authOrgSlug, latestAuthInvitation } from "@/lib/membership-sync";
 import { requireAdmin, requireMembership, requireParent, requireUser } from "@/lib/security";
@@ -138,5 +138,30 @@ export async function addChildAction(formData: FormData) {
   const { membership } = await requireMembership(spaceId);
   await db.insert(s.memberChildren).values({ memberId: membership.id, childId: child.id }).onConflictDoNothing();
   await db.insert(s.activityLogs).values({ careSpaceId: spaceId, actorUserId: session.user.id, action: "CHILD_ADDED", entityType: "child", entityId: child.id });
+  revalidatePath("/app");
+}
+
+export async function updateMemberAccessAction(formData: FormData) {
+  const spaceId = text(formData, "spaceId");
+  const { session, membership: adminMembership } = await requireAdmin(spaceId);
+  const memberId = text(formData, "memberId");
+  const childIds = formData.getAll("childIds").map(String);
+  await assertMembers(spaceId, [memberId]);
+  await assertChildren(adminMembership.id, childIds);
+  const [target] = await db.select().from(s.members).where(and(eq(s.members.id, memberId), eq(s.members.careSpaceId, spaceId))).limit(1);
+  if (!target || target.role === "PARENT" || target.role === "PARENT_ADMIN") throw new Error("INVALID_CAREGIVER");
+  const permissions = {
+    program: formData.get("program") === "on",
+    tasks: formData.get("tasks") === "on",
+    shopping: formData.get("shopping") === "on",
+    cash: formData.get("cash") === "on",
+    journal: formData.get("journal") === "on",
+  };
+  await db.transaction(async tx => {
+    await tx.update(s.members).set({ permissions }).where(eq(s.members.id, memberId));
+    await tx.delete(s.memberChildren).where(eq(s.memberChildren.memberId, memberId));
+    if (childIds.length) await tx.insert(s.memberChildren).values(childIds.map(childId => ({ memberId, childId })));
+    await log(tx, spaceId, session.user.id, "MEMBER_ACCESS_UPDATED", "member", memberId, { childIds, permissions });
+  });
   revalidatePath("/app");
 }
