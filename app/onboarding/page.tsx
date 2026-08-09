@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createSpaceAction } from "@/app/actions";
+import { createSpaceAction } from "@/app/actions/space";
 import { requireUser } from "@/lib/security";
 import { spacesForUser } from "@/lib/data";
 import { serverConfigured } from "@/lib/env";
