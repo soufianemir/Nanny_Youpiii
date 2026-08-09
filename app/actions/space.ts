@@ -55,7 +55,9 @@ export async function acceptInvitationAction(formData: FormData) {
   if (!invite || invite.expiresAt < new Date()) throw new Error("Invitation invalide ou expirée");
   if (session.user.email.toLowerCase() !== invite.email.toLowerCase()) throw new Error("Cette invitation appartient à une autre adresse e-mail");
   await db.transaction(async tx => {
-    const defaults = isParentRole(invite.role) ? { program:true, shopping:true, cash:true } : { program:true, tasks:true, shopping:true, cash:true, journal:true };
+    const defaults: Record<string, boolean> = isParentRole(invite.role)
+      ? { program:true, shopping:true, cash:true }
+      : { program:true, tasks:true, shopping:true, cash:true, journal:true };
     let [member] = await tx.insert(s.members).values({ careSpaceId: invite.careSpaceId, userId: session.user.id, role: invite.role, permissions: defaults }).onConflictDoNothing().returning();
     if (!member) [member] = await tx.select().from(s.members).where(and(eq(s.members.careSpaceId,invite.careSpaceId),eq(s.members.userId,session.user.id))).limit(1);
     if (member && invite.childIds.length) await tx.insert(s.memberChildren).values(invite.childIds.map(childId => ({ memberId: member.id, childId }))).onConflictDoNothing();
