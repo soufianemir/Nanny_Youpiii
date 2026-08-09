@@ -1,0 +1,1 @@
+import { ForgotPasswordForm } from "@/components/auth-forms"; export default function Page(){return <main className="authwrap"><div className="authcard"><div className="logo">Y!</div><h1>Mot de passe oublié</h1><p className="muted">Nous envoyons un lien sécurisé à votre adresse e-mail.</p><ForgotPasswordForm/></div></main>}
