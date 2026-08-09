@@ -2,36 +2,20 @@ name: Nanny Youpiii V3 CI
 on:
   pull_request:
     branches: [main]
+  push:
+    branches: [main]
 permissions:
-  contents: write
+  contents: read
 jobs:
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
-        with:
-          ref: ${{ github.head_ref }}
       - uses: actions/setup-node@v6
         with:
           node-version: 22
       - run: npm install --no-audit --no-fund
       - run: npm run typecheck
       - run: npm test
-      - name: Export Drizzle DDL
-        run: |
-          rm -rf drizzle
-          npx drizzle-kit generate --config=drizzle.config.ts
-          echo '===NANNY_SCHEMA_SQL_BEGIN==='
-          cat drizzle/*.sql
-          echo '===NANNY_SCHEMA_SQL_END==='
-      - name: Persist generated migration
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add drizzle
-          if ! git diff --cached --quiet; then
-            git commit -m "Generate initial V3 migration"
-            git push origin HEAD:${{ github.head_ref }}
-          fi
       - run: npm run build
