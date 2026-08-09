@@ -44,3 +44,7 @@ python3 -m http.server 3000
 ```
 
 Puis ouvrir http://localhost:3000.
+
+## Déploiement public
+
+Le dépôt contient un workflow GitHub Pages qui publie automatiquement une version publique gratuite à chaque push sur `main`, en complément du déploiement Vercel.
