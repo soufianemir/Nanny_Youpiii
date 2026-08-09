@@ -16,12 +16,19 @@ jobs:
         with:
           node-version: 22
       - run: npm install --no-audit --no-fund
-      - name: Inspect Neon Auth verification APIs
+      - name: Inspect Neon Auth OTP signup flow
         run: |
-          echo '--- auth-ui email otp references ---'
-          grep -RniE 'email-otp|verify.*email|verification.*email|otp' node_modules/@neondatabase/auth-ui node_modules/@neondatabase/auth 2>/dev/null | head -160 || true
-          echo '--- auth client types ---'
-          grep -RniE 'emailOtp|verifyEmail|sendVerification|verification' node_modules/@neondatabase/auth 2>/dev/null | head -160 || true
+          echo '--- provider docs ---'
+          sed -n '370,430p' node_modules/@neondatabase/auth-ui/llms.txt || true
+          echo '--- README emailOTP ---'
+          sed -n '60,110p' node_modules/@neondatabase/auth-ui/README.md || true
+          sed -n '210,250p' node_modules/@neondatabase/auth-ui/README.md || true
+          echo '--- SignUpForm implementation ---'
+          grep -n 'function SignUpForm' node_modules/@neondatabase/auth-ui/dist/index.mjs || true
+          START=$(grep -n 'function SignUpForm' node_modules/@neondatabase/auth-ui/dist/index.mjs | head -1 | cut -d: -f1 || true)
+          if [ -n "$START" ]; then END=$((START+260)); sed -n "${START},${END}p" node_modules/@neondatabase/auth-ui/dist/index.mjs; fi
+          echo '--- EmailOTP implementation ---'
+          sed -n '8840,9015p' node_modules/@neondatabase/auth-ui/dist/index.mjs || true
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
