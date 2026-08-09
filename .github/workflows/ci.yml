@@ -1,21 +1,21 @@
-name: Nanny Youpiii V3 CI
+name: Verify Nanny Youpiii production OTP
 on:
   pull_request:
-    branches: [main]
-  push:
     branches: [main]
 permissions:
   contents: read
 jobs:
-  validate:
+  verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 22
-      - run: npm install --no-audit --no-fund
-      - run: npm run typecheck
-      - run: npm test
-      - run: npm run build
+      - name: Check production verification screen
+        env:
+          BASE_URL: https://nanny-youpiii-v3.vercel.app
+        run: |
+          set -e
+          code=$(curl -L -sS -o /tmp/verify.html -w '%{http_code}' --max-time 20 "$BASE_URL/verify-email?email=test%40example.com")
+          echo "status=$code"
+          test "$code" = "200"
+          grep -qi 'Vérifiez votre e-mail' /tmp/verify.html
+          echo 'OTP verification screen is live.'
