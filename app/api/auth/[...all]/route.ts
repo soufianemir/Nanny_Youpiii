@@ -3,7 +3,7 @@ import { serverConfigured } from "@/lib/env";
 
 const handler = auth.handler();
 
-type RouteContext = { params: Promise<Record<string, string | string[]>> };
+type RouteContext = { params: Promise<{ path: string[] }> };
 
 export async function GET(request: Request, context: RouteContext) {
   if (!serverConfigured()) return Response.json({ error: "Nanny Youpiii V3 backend is not configured" }, { status: 503 });
