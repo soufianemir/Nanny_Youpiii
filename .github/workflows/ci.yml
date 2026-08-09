@@ -1,4 +1,4 @@
-name: Vercel preview diagnostic
+name: Vercel production diagnostic
 on:
   pull_request:
     branches: [main]
@@ -7,17 +7,21 @@ permissions:
 jobs:
   diagnose:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 5
     steps:
-      - name: Inspect preview response
+      - name: Verify public production
         env:
-          PREVIEW_URL: https://nanny-youpiii-v3-b9o1p6dxq-appdevs-projects-d796a91e.vercel.app
+          PROD_URL: https://nanny-youpiii-v3-appdevs-projects-d796a91e.vercel.app
         run: |
-          curl -L -sS -D /tmp/headers.txt -o /tmp/body.html --max-time 20 "$PREVIEW_URL/"
-          echo '--- headers ---'
-          cat /tmp/headers.txt
-          echo '--- title ---'
-          grep -Eio '<title>[^<]*</title>' /tmp/body.html | head -1 || true
-          echo '--- body preview ---'
-          head -c 2500 /tmp/body.html
-          echo
+          code=000
+          for attempt in $(seq 1 24); do
+            code=$(curl -L -sS -o /tmp/body.html -w '%{http_code}' --max-time 15 "$PROD_URL/" || true)
+            echo "attempt=$attempt status=$code"
+            if [ "$code" = "200" ]; then break; fi
+            sleep 10
+          done
+          test "$code" = "200"
+          grep -qi 'Nanny Youpiii V3' /tmp/body.html
+          grep -qi 'Configuration manquante' /tmp/body.html
+          grep -qi 'DATABASE_URL' /tmp/body.html
+          echo 'Public production is reachable; DATABASE_URL is the remaining required secret.'
