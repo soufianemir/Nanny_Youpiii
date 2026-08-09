@@ -15,20 +15,22 @@ Application mobile-first pour organiser le quotidien des enfants entre plusieurs
 
 Chaque espace de garde Nanny Youpiii correspond à une organisation Neon Auth. Neon gère l'identité et l'acceptation sécurisée des invitations ; les rôles métier (`PARENT`, `NANNY`, `BABYSITTER`, etc.) et les enfants visibles restent gérés par Nanny Youpiii.
 
-## Variables d'environnement
+## Déploiement Vercel + Neon
 
-Copier `.env.example` vers `.env.local` et renseigner :
+Pour la production, importer le dépôt GitHub comme projet Next.js Vercel puis connecter le projet Neon existant avec l'intégration **Neon-Managed**. L'intégration injecte automatiquement :
 
-- `DATABASE_URL` : chaîne de connexion PostgreSQL Neon ;
-- `NEON_AUTH_BASE_URL` : URL Managed Better Auth de la branche Neon ;
-- `NEON_AUTH_COOKIE_SECRET` : secret aléatoire d'au moins 32 caractères pour signer le cache de session ;
-- `NEXT_PUBLIC_APP_URL` : URL publique de l'application.
+- `DATABASE_URL` ;
+- `NEON_AUTH_BASE_URL`.
 
-Sans ces variables, la production affiche volontairement un écran **backend à configurer** et n'active pas une fausse authentification.
+Aucun secret supplémentaire n'est requis : `NEON_AUTH_COOKIE_SECRET` est optionnel et, s'il est absent, l'application dérive côté serveur un secret de session stable à partir de la connexion PostgreSQL. `NEXT_PUBLIC_APP_URL` est également optionnel sur Vercel, l'URL de déploiement étant détectée automatiquement.
+
+Pour le développement local, copier `.env.example` vers `.env.local` et renseigner au minimum `DATABASE_URL` et `NEON_AUTH_BASE_URL`.
+
+Sans ces deux variables, la production affiche volontairement un écran **backend à configurer** et n'active pas une fausse authentification.
 
 ## Initialisation de la base métier
 
-Neon Auth provisionne ses propres tables dans le schéma `neon_auth`. Le modèle métier Nanny Youpiii est appliqué avec Drizzle :
+Neon Auth provisionne ses propres tables dans le schéma `neon_auth`. Le modèle métier Nanny Youpiii est versionné dans `drizzle/` et peut être appliqué avec :
 
 ```bash
 npm install
