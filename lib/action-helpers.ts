@@ -4,7 +4,20 @@ import * as s from "@/db/schema";
 
 export const money = (v: FormDataEntryValue | null) => Math.round(Number(v || 0) * 100) / 100;
 export const text = (f: FormData, k: string) => String(f.get(k) || "").trim();
-export const today = () => new Date().toISOString().slice(0,10);
+
+export const dateInTimeZone = (date = new Date(), timeZone = "Europe/Paris") => {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find(p => p.type === type)?.value || "";
+  return `${value("year")}-${value("month")}-${value("day")}`;
+};
+
+export const today = (timeZone = "Europe/Paris") => dateInTimeZone(new Date(), timeZone);
+
 export const log = async (tx: any, spaceId: string, userId: string, action: string, entityType: string, entityId?: string, metadata: Record<string, unknown> = {}) => {
   await tx.insert(s.activityLogs).values({ careSpaceId: spaceId, actorUserId: userId, action, entityType, entityId, metadata });
 };

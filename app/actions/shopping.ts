@@ -6,6 +6,7 @@ import * as s from "@/db/schema";
 import { applyFunding, applyPurchase, applyReimbursement } from "@/lib/cash";
 import { assertChildren, assertMembers, log, money, text, today } from "@/lib/action-helpers";
 import { requireParent, requirePermission, isParentRole } from "@/lib/security";
+
 export async function addShoppingItemAction(formData: FormData) {
   const spaceId = text(formData, "spaceId");
   const { session, membership } = await requirePermission(spaceId, "shopping");
@@ -28,6 +29,9 @@ export async function completeShoppingPurchaseAction(formData: FormData) {
   const amount = money(formData.get("amount"));
   const itemIds = formData.getAll("itemIds").map(String);
   if (!Number.isFinite(amount) || amount <= 0 || itemIds.length === 0) throw new Error("Sélectionnez les produits achetés et un montant valide");
+  const [space] = await db.select({ timezone: s.careSpaces.timezone }).from(s.careSpaces).where(eq(s.careSpaces.id, spaceId)).limit(1);
+  if (!space) throw new Error("Espace introuvable");
+  const expenseDate = today(space.timezone);
   const [activeList]=await db.select().from(s.shoppingLists).where(and(eq(s.shoppingLists.careSpaceId,spaceId),eq(s.shoppingLists.active,true))).limit(1);
   if(!activeList) throw new Error("Liste de courses absente");
   const validItems=await db.select().from(s.shoppingItems).where(and(eq(s.shoppingItems.shoppingListId,activeList.id),inArray(s.shoppingItems.id,itemIds),eq(s.shoppingItems.status,"TODO")));
@@ -39,7 +43,7 @@ export async function completeShoppingPurchaseAction(formData: FormData) {
     let [advance] = await tx.select().from(s.caregiverAdvances).where(and(eq(s.caregiverAdvances.careSpaceId, spaceId), eq(s.caregiverAdvances.memberId, membership.id))).for("update").limit(1);
     if (!advance) [advance] = await tx.insert(s.caregiverAdvances).values({ careSpaceId: spaceId, memberId: membership.id, balance: "0" }).returning();
     const result = applyPurchase(Number(cash.balance), Number(advance.balance), amount);
-    const [expense] = await tx.insert(s.expenses).values({ careSpaceId: spaceId, memberId: membership.id, amount: String(amount), description: text(formData, "description") || "Courses", expenseDate: today() }).returning();
+    const [expense] = await tx.insert(s.expenses).values({ careSpaceId: spaceId, memberId: membership.id, amount: String(amount), description: text(formData, "description") || "Courses", expenseDate }).returning();
     await tx.update(s.cashAccounts).set({ balance: String(result.cashBalance), updatedAt: new Date() }).where(eq(s.cashAccounts.id, cash.id));
     await tx.update(s.caregiverAdvances).set({ balance: String(result.advanceBalance), updatedAt: new Date() }).where(eq(s.caregiverAdvances.id, advance.id));
     await tx.insert(s.cashTransactions).values({ cashAccountId: cash.id, kind: "PURCHASE", amount: String(-result.fromCash), expenseId: expense.id, memberId: membership.id, note: `Achat ${amount.toFixed(2)} €` });

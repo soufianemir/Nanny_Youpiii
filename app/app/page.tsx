@@ -27,7 +27,7 @@ export default async function AppPage({searchParams}:{searchParams:Promise<Recor
   const actualMembership=own.member;
   const parent=isParentRole(actualMembership.role);
   const section=params.section||"today";
-  const selectedDate=params.date||today();
+  const selectedDate=params.date||today(own.space.timezone);
   let viewMembership=actualMembership;
   let preview=false;
   if(parent&&params.preview){
@@ -58,7 +58,7 @@ export default async function AppPage({searchParams}:{searchParams:Promise<Recor
       {section==="program"&&<Program spaceId={selectedSpaceId} selectedDate={selectedDate} snapshot={snapshot} caregivers={caregiverMembers} children={snapshot.children} routines={routines} memberName={memberName} canEdit={parent&&!preview} canAct={!preview}/>} 
       {section==="shopping"&&<Shopping spaceId={selectedSpaceId} snapshot={snapshot} canAdd={!preview} canPurchase={!preview&&!parent} children={snapshot.children}/>} 
       {section==="cash"&&<Cash spaceId={selectedSpaceId} snapshot={snapshot} team={fullTeam} memberName={memberName} parent={parent&&!preview} viewMembership={viewMembership}/>} 
-      {section==="more"&&<More spaceId={selectedSpaceId} snapshot={snapshot} team={fullTeam} children={snapshot.children} memberName={memberName} parent={parent&&!preview} routines={routines} selectedDate={selectedDate}/>} 
+      {section==="more"&&<More spaceId={selectedSpaceId} snapshot={snapshot} team={fullTeam} children={snapshot.children} memberName={memberName} parent={parent&&!preview} canAct={!preview} routines={routines} selectedDate={selectedDate}/>} 
     </main>
     <nav className="nav">{nav.map(([id,label])=><Link key={id} className={section===id?"active":""} href={q({section:id})}>{label}</Link>)}</nav>
   </div>;
