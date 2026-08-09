@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { invitations, careSpaces } from "@/db/schema";
-import { acceptInvitationAction } from "@/app/actions";
+import { acceptInvitationAction } from "@/app/actions/space";
 import { serverConfigured } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
