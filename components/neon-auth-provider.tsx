@@ -8,11 +8,7 @@ export function NeonAuthProvider({ children }: { children: React.ReactNode }) {
     <NeonAuthUIProvider
       authClient={authClient}
       credentials={{ forgotPassword: true }}
-      additionalFields={{
-        firstName: { label: "Prénom", placeholder: "Prénom", type: "string", required: true },
-        lastName: { label: "Nom", placeholder: "Nom", type: "string", required: true },
-      }}
-      signUp={{ fields: ["name", "firstName", "lastName"] }}
+      signUp={{ fields: ["name"] }}
     >
       {children}
     </NeonAuthUIProvider>
