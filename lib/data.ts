@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import { db } from "@/db";
 import * as s from "@/db/schema";
-import { isParentRole } from "@/lib/security";
+import { hasPermission, isParentRole } from "@/lib/security";
 
 export async function spacesForUser(userId: string) {
   return db.select({ member: s.members, space: s.careSpaces })
@@ -40,27 +40,30 @@ export async function spaceSnapshot(spaceId: string, membership: typeof s.member
   tasks=tasks.filter(t=>{const links=taskLinks.filter(l=>l.taskId===t.id).map(l=>l.childId);return links.length===0||links.some(id=>allowedChildIds.includes(id));});
   if (!parent) {
     const assignedProgramIds = program.length ? (await db.select({ id: s.programAssignees.programItemId }).from(s.programAssignees).where(and(eq(s.programAssignees.memberId, membership.id),inArray(s.programAssignees.programItemId,program.map(p=>p.id))))).map(x=>x.id) : [];
-    program = program.filter(p => assignedProgramIds.includes(p.id));
+    program = hasPermission(membership,"program") ? program.filter(p => assignedProgramIds.includes(p.id)) : [];
     const assignedTaskIds = tasks.length ? (await db.select({ id: s.taskAssignees.taskId }).from(s.taskAssignees).where(and(eq(s.taskAssignees.memberId, membership.id),inArray(s.taskAssignees.taskId,tasks.map(t=>t.id))))).map(x=>x.id) : [];
-    tasks = tasks.filter(t => assignedTaskIds.includes(t.id));
+    tasks = hasPermission(membership,"tasks") ? tasks.filter(t => assignedTaskIds.includes(t.id)) : [];
   }
   const allInstructions = await db.select().from(s.instructions).where(eq(s.instructions.careSpaceId, spaceId));
   const instructions=allInstructions.filter(i=>(i.permanent||i.validOn===selectedDate)&&(i.childIds.length===0||i.childIds.some(id=>allowedChildIds.includes(id)))&&(i.memberIds.length===0||i.memberIds.includes(membership.id)||parent));
   const lists = await db.select().from(s.shoppingLists).where(and(eq(s.shoppingLists.careSpaceId, spaceId), eq(s.shoppingLists.active, true))).limit(1);
-  let shopping = lists[0] ? await db.select().from(s.shoppingItems).where(eq(s.shoppingItems.shoppingListId, lists[0].id)) : [];
+  const canShop=parent||hasPermission(membership,"shopping");
+  let shopping = canShop&&lists[0] ? await db.select().from(s.shoppingItems).where(eq(s.shoppingItems.shoppingListId, lists[0].id)) : [];
   shopping=shopping.filter(i=>!i.childId||allowedChildIds.includes(i.childId));
-  const [cash] = await db.select().from(s.cashAccounts).where(eq(s.cashAccounts.careSpaceId, spaceId)).limit(1);
-  const advances = parent
+  const canSeeCash=parent||hasPermission(membership,"cash");
+  const [cash] = canSeeCash ? await db.select().from(s.cashAccounts).where(eq(s.cashAccounts.careSpaceId, spaceId)).limit(1) : [undefined];
+  const advances = !canSeeCash ? [] : parent
     ? await db.select().from(s.caregiverAdvances).where(eq(s.caregiverAdvances.careSpaceId, spaceId))
     : await db.select().from(s.caregiverAdvances).where(and(eq(s.caregiverAdvances.careSpaceId, spaceId), eq(s.caregiverAdvances.memberId, membership.id)));
-  const expenses = parent
+  const expenses = !canShop ? [] : parent
     ? await db.select().from(s.expenses).where(and(eq(s.expenses.careSpaceId, spaceId), eq(s.expenses.expenseDate, selectedDate))).orderBy(desc(s.expenses.createdAt))
     : await db.select().from(s.expenses).where(and(eq(s.expenses.careSpaceId, spaceId), eq(s.expenses.memberId, membership.id), eq(s.expenses.expenseDate, selectedDate))).orderBy(desc(s.expenses.createdAt));
-  let notes = parent
+  const canJournal=parent||hasPermission(membership,"journal");
+  let notes = !canJournal ? [] : parent
     ? await db.select().from(s.dailyNotes).where(and(eq(s.dailyNotes.careSpaceId, spaceId), eq(s.dailyNotes.noteDate, selectedDate))).orderBy(desc(s.dailyNotes.createdAt))
     : await db.select().from(s.dailyNotes).where(and(eq(s.dailyNotes.careSpaceId, spaceId), eq(s.dailyNotes.memberId, membership.id), eq(s.dailyNotes.noteDate, selectedDate))).orderBy(desc(s.dailyNotes.createdAt));
   notes=notes.filter(n=>!n.childId||allowedChildIds.includes(n.childId));
-  const handovers=parent
+  const handovers=!canJournal?[]:parent
     ? await db.select().from(s.handovers).where(and(eq(s.handovers.careSpaceId,spaceId),eq(s.handovers.handoverDate,selectedDate))).orderBy(desc(s.handovers.createdAt))
     : await db.select().from(s.handovers).where(and(eq(s.handovers.careSpaceId,spaceId),eq(s.handovers.handoverDate,selectedDate),or(isNull(s.handovers.toMemberId),eq(s.handovers.toMemberId,membership.id)))).orderBy(desc(s.handovers.createdAt));
   const activity=parent?await db.select().from(s.activityLogs).where(eq(s.activityLogs.careSpaceId,spaceId)).orderBy(desc(s.activityLogs.createdAt)).limit(30):[];
