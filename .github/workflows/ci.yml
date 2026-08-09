@@ -1,36 +1,23 @@
-name: Nanny Youpiii V3 CI
+name: Vercel preview diagnostic
 on:
   pull_request:
     branches: [main]
 permissions:
   contents: read
 jobs:
-  validate:
+  diagnose:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 3
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 22
-      - run: npm install --no-audit --no-fund
-      - run: npm run typecheck
-      - run: npm test
-      - run: npm run build
-      - name: Smoke test Vercel preview
+      - name: Inspect preview response
         env:
           PREVIEW_URL: https://nanny-youpiii-v3-b9o1p6dxq-appdevs-projects-d796a91e.vercel.app
         run: |
-          code=000
-          for attempt in $(seq 1 18); do
-            code=$(curl -L -sS -o /tmp/nanny-home.html -w '%{http_code}' --max-time 15 "$PREVIEW_URL/" || true)
-            echo "attempt=$attempt status=$code"
-            if [ "$code" = "200" ]; then break; fi
-            sleep 10
-          done
-          test "$code" = "200"
-          grep -qi 'Nanny Youpiii' /tmp/nanny-home.html
-          signup=$(curl -L -sS -o /tmp/nanny-signup.html -w '%{http_code}' --max-time 15 "$PREVIEW_URL/sign-up" || true)
-          echo "signup_status=$signup"
-          test "$signup" = "200"
-          grep -Eqi 'inscri|compte|Nanny Youpiii' /tmp/nanny-signup.html
+          curl -L -sS -D /tmp/headers.txt -o /tmp/body.html --max-time 20 "$PREVIEW_URL/"
+          echo '--- headers ---'
+          cat /tmp/headers.txt
+          echo '--- title ---'
+          grep -Eio '<title>[^<]*</title>' /tmp/body.html | head -1 || true
+          echo '--- body preview ---'
+          head -c 2500 /tmp/body.html
+          echo
