@@ -16,6 +16,12 @@ jobs:
         with:
           node-version: 22
       - run: npm install --no-audit --no-fund
+      - name: Inspect Neon Auth verification APIs
+        run: |
+          echo '--- auth-ui email otp references ---'
+          grep -RniE 'email-otp|verify.*email|verification.*email|otp' node_modules/@neondatabase/auth-ui node_modules/@neondatabase/auth 2>/dev/null | head -160 || true
+          echo '--- auth client types ---'
+          grep -RniE 'emailOtp|verifyEmail|sendVerification|verification' node_modules/@neondatabase/auth 2>/dev/null | head -160 || true
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
