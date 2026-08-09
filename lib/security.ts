@@ -1,13 +1,15 @@
-import { headers } from "next/headers";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { members, memberChildren } from "@/db/schema";
 import { auth } from "@/lib/auth";
+import { reconcileLegacyMemberships, syncAcceptedInvitations } from "@/lib/membership-sync";
 
 export async function requireUser() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) throw new Error("UNAUTHENTICATED");
-  return session;
+  const { data } = await auth.getSession();
+  if (!data?.user) throw new Error("UNAUTHENTICATED");
+  await reconcileLegacyMemberships(data.user.id, data.user.email);
+  await syncAcceptedInvitations(data.user.id, data.user.email);
+  return data;
 }
 
 export async function requireMembership(careSpaceId: string) {

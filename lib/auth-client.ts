@@ -1,5 +1,3 @@
 "use client";
-import { createAuthClient } from "better-auth/react";
-import { inferAdditionalFields } from "better-auth/client/plugins";
-import type { auth } from "@/lib/auth";
-export const authClient = createAuthClient({ plugins: [inferAdditionalFields<typeof auth>()] });
+import { createAuthClient } from "@neondatabase/auth/next";
+export const authClient = createAuthClient();
