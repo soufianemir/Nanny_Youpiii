@@ -1,0 +1,32 @@
+name: Verify simplified V3 production
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check public landing and demos
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://nanny-youpiii-v3.vercel.app'
+          check() {
+            url="$1"; needle="$2"
+            for i in {1..12}; do
+              html="$(curl -fsSL --max-time 20 "$url" || true)"
+              if printf '%s' "$html" | grep -Fq "$needle"; then
+                echo "OK $url -> $needle"
+                return 0
+              fi
+              sleep 5
+            done
+            echo "Missing '$needle' at $url" >&2
+            exit 1
+          }
+          check "$base/" 'Tout ce qui concerne vos enfants'
+          check "$base/demo?role=parent&section=today" 'Bonjour Camille'
+          check "$base/demo?role=nanny&section=shopping" 'Courses & caisse'
+          check "$base/demo?role=nanny&section=shopping" 'Acheté'
