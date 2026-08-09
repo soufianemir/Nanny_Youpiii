@@ -2,11 +2,12 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { members, memberChildren } from "@/db/schema";
 import { auth } from "@/lib/auth";
-import { syncAcceptedInvitations } from "@/lib/membership-sync";
+import { reconcileLegacyMemberships, syncAcceptedInvitations } from "@/lib/membership-sync";
 
 export async function requireUser() {
   const { data } = await auth.getSession();
   if (!data?.user) throw new Error("UNAUTHENTICATED");
+  await reconcileLegacyMemberships(data.user.id, data.user.email);
   await syncAcceptedInvitations(data.user.id, data.user.email);
   return data;
 }
