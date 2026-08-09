@@ -4,10 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node scripts/build.mjs",
+    "build:next": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "db:auth": "npx auth@latest migrate",
+    "db:auth": "npx auth@latest migrate --yes",
     "db:push": "drizzle-kit push",
     "db:setup": "npm run db:auth && npm run db:push",
     "test": "tsx --test tests/*.test.ts"
