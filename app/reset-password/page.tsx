@@ -1,0 +1,1 @@
+import { Suspense } from "react"; import { ResetPasswordForm } from "@/components/auth-forms"; export default function Page(){return <main className="authwrap"><div className="authcard"><div className="logo">Y!</div><h1>Nouveau mot de passe</h1><Suspense><ResetPasswordForm/></Suspense></div></main>}

@@ -1,0 +1,34 @@
+{
+  "name": "nanny-youpiii-v3",
+  "version": "3.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "db:auth": "npx auth@latest migrate",
+    "db:push": "drizzle-kit push",
+    "db:setup": "npm run db:auth && npm run db:push",
+    "test": "tsx --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "better-auth": "^1.4.0",
+    "drizzle-orm": "^0.44.5",
+    "next": "^16.0.0",
+    "pg": "^8.16.3",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "zod": "^4.1.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "@types/pg": "^8.15.5",
+    "@types/react": "^19.1.12",
+    "@types/react-dom": "^19.1.9",
+    "dotenv": "^17.2.1",
+    "drizzle-kit": "^0.31.4",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
+  }
+}

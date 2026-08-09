@@ -1,0 +1,2 @@
+import Link from "next/link"; import { Suspense } from "react"; import { SignInForm } from "@/components/auth-forms";
+export default function Page(){return <main className="authwrap"><div className="authcard"><div className="logo">Y!</div><h1>Connexion</h1><p className="muted">Retrouvez votre espace de garde.</p><Suspense><SignInForm/></Suspense><p className="muted"><Link href="/forgot-password">Mot de passe oublié ?</Link></p><p className="muted">Pas encore de compte ? <Link href="/sign-up"><b>Créer mon compte</b></Link></p></div></main>}

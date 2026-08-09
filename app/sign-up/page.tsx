@@ -1,0 +1,2 @@
+import Link from "next/link"; import { Suspense } from "react"; import { SignUpForm } from "@/components/auth-forms";
+export default function Page(){return <main className="authwrap"><div className="authcard"><div className="logo">Y!</div><h1>Créer mon compte</h1><p className="muted">Parent, nounou ou baby-sitter : un seul compte, des droits adaptés.</p><Suspense><SignUpForm/></Suspense><p className="muted">Déjà inscrit ? <Link href="/sign-in"><b>Se connecter</b></Link></p></div></main>}
