@@ -2,8 +2,6 @@ name: Nanny Youpiii V3 CI
 on:
   pull_request:
     branches: [main]
-  push:
-    branches: [main]
 permissions:
   contents: read
 jobs:
@@ -19,3 +17,11 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - name: Pack validated source
+        run: tar --exclude=.git --exclude=node_modules --exclude=.next -czf /tmp/nanny-youpiii-v3-source.tgz .
+      - name: Upload validated source
+        uses: actions/upload-artifact@v4
+        with:
+          name: nanny-youpiii-v3-source
+          path: /tmp/nanny-youpiii-v3-source.tgz
+          retention-days: 1
