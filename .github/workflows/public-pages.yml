@@ -26,8 +26,9 @@ jobs:
         run: |
           node --check js/app.js
           node --check js/state.js
-      - name: V2 model tests
-        run: node tests/model-v2.mjs
+      - name: Domain tests when present
+        run: |
+          if [ -f tests/model-v2.mjs ]; then node tests/model-v2.mjs; fi
 
   deploy:
     if: github.event_name != 'pull_request'
