@@ -1,0 +1,12 @@
+{
+  "name": "Nanny Youpiii",
+  "short_name": "Youpiii",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f5ef",
+  "theme_color": "#f7f5ef",
+  "description": "Toute la journée de l'enfant, comprise en quelques secondes.",
+  "icons": [
+    {"src":"/assets/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}
+  ]
+}
