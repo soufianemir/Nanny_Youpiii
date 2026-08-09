@@ -23,6 +23,25 @@ export async function latestAuthInvitation(spaceId: string, email: string) {
   return result.rows[0] || null;
 }
 
+export async function reconcileLegacyMemberships(userId: string, email: string) {
+  const check = await pool.query<{ legacy: string | null }>(`select to_regclass('public."user"')::text as legacy`);
+  if (!check.rows[0]?.legacy) return;
+
+  await pool.query(
+    `update members m
+        set user_id = $1
+       from public."user" legacy_user
+      where m.user_id = legacy_user.id
+        and lower(legacy_user.email) = lower($2)
+        and not exists (
+          select 1 from members current_member
+           where current_member.care_space_id = m.care_space_id
+             and current_member.user_id = $1
+        )`,
+    [userId, email],
+  );
+}
+
 export async function syncAcceptedInvitations(userId: string, email: string) {
   const result = await pool.query<{
     invitationId: string;
