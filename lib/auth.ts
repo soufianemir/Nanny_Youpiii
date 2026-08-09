@@ -2,12 +2,15 @@ import { betterAuth } from "better-auth";
 import { nextCookies } from "better-auth/next-js";
 import { pool } from "@/db";
 import { sendTransactionalEmail } from "@/lib/email";
+import { appBaseUrl, authSecret } from "@/lib/env";
+
+const baseURL = appBaseUrl();
 
 export const auth = betterAuth({
   database: pool,
-  secret: process.env.BETTER_AUTH_SECRET || "build-only-placeholder-secret-please-configure-production",
-  baseURL: process.env.BETTER_AUTH_URL,
-  trustedOrigins: [process.env.NEXT_PUBLIC_APP_URL || process.env.BETTER_AUTH_URL || "http://localhost:3000"],
+  secret: authSecret(),
+  baseURL,
+  trustedOrigins: [baseURL],
   user: {
     additionalFields: {
       firstName: { type: "string", required: true },
