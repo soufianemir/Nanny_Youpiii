@@ -1,0 +1,75 @@
+name: Publish public Nanny Youpiii
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Build public static site
+        shell: bash
+        run: |
+          mkdir -p _site
+          rsync -a --exclude '.git' --exclude '.github' --exclude '_site' ./ _site/
+          python - <<'PY'
+          from pathlib import Path
+          root = Path('_site')
+
+          p = root / 'index.html'
+          s = p.read_text()
+          s = s.replace('href="/manifest.webmanifest"', 'href="./manifest.webmanifest"')
+          s = s.replace('href="/assets/icon.svg"', 'href="./assets/icon.svg"')
+          s = s.replace('href="/styles.css"', 'href="./styles.css"')
+          s = s.replace('src="/js/app.js"', 'src="./js/app.js"')
+          p.write_text(s)
+
+          p = root / 'js/app.js'
+          s = p.read_text()
+          s = s.replace("'/assets/", "'./assets/")
+          s = s.replace('src="/assets/', 'src="./assets/')
+          s = s.replace("register('/sw.js')", "register('./sw.js')")
+          p.write_text(s)
+
+          p = root / 'manifest.webmanifest'
+          s = p.read_text().replace('"start_url": "/"', '"start_url": "./"')
+          s = s.replace('"/assets/icon.svg"', '"./assets/icon.svg"')
+          p.write_text(s)
+
+          p = root / 'sw.js'
+          s = p.read_text()
+          s = s.replace("['/', '/index.html', '/styles.css', '/js/app.js', '/js/state.js', '/js/templates.js', '/assets/icon.svg']", "['./', './index.html', './styles.css', './js/app.js', './js/state.js', './js/templates.js', './assets/icon.svg']")
+          s = s.replace("caches.match('/'))", "caches.match('./'))")
+          p.write_text(s)
+          PY
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Upload site
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+      - name: Deploy public site
+        id: deployment
+        uses: actions/deploy-pages@v4
