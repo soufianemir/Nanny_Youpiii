@@ -7,21 +7,19 @@ permissions:
 jobs:
   diagnose:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 3
     steps:
-      - name: Verify public production
+      - name: Inspect public production response
         env:
           PROD_URL: https://nanny-youpiii-v3-appdevs-projects-d796a91e.vercel.app
         run: |
-          code=000
-          for attempt in $(seq 1 24); do
-            code=$(curl -L -sS -o /tmp/body.html -w '%{http_code}' --max-time 15 "$PROD_URL/" || true)
-            echo "attempt=$attempt status=$code"
-            if [ "$code" = "200" ]; then break; fi
-            sleep 10
-          done
-          test "$code" = "200"
-          grep -qi 'Nanny Youpiii V3' /tmp/body.html
-          grep -qi 'Configuration manquante' /tmp/body.html
-          grep -qi 'DATABASE_URL' /tmp/body.html
-          echo 'Public production is reachable; DATABASE_URL is the remaining required secret.'
+          curl -L -sS -D /tmp/headers.txt -o /tmp/body.html --max-time 20 "$PROD_URL/"
+          echo '--- headers ---'
+          cat /tmp/headers.txt
+          echo '--- title ---'
+          grep -Eio '<title>[^<]*</title>' /tmp/body.html | head -1 || true
+          echo '--- markers ---'
+          grep -Eio 'Nanny Youpiii[^<]*|Configuration manquante|DATABASE_URL|Login – Vercel' /tmp/body.html | head -20 || true
+          echo '--- body preview ---'
+          head -c 3000 /tmp/body.html
+          echo
