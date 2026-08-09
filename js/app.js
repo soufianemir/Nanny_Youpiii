@@ -23,26 +23,30 @@ function activeOuting(){
   const end = state.events.find(e=>e.type==='outing_end' && new Date(e.at)>new Date(start.at));
   return end ? null : start;
 }
+function latestEvent(){ return state.events.at(-1) || null; }
 function walletSpent(){ return state.wallet.movements.reduce((a,m)=>a + (m.kind==='expense'?m.amount:0),0); }
 function walletBalance(){ return state.wallet.initial - walletSpent(); }
 function reimbursementTotal(){ return state.reimbursements.filter(r=>r.status!=='reimbursed').reduce((a,r)=>a+r.amount,0); }
 function eventMeta(e){
-  const map = {
-    care_start:['👋','Aurore commence sa garde','La journée est lancée'],
-    care_end:['👋','Fin de garde','Passation disponible'],
-    nap_start:['😴','Sieste','Constance s’est endormie'],
-    nap_end:['☀️','Réveil',e.duration || 'Sieste terminée'],
-    outing_start:['🌳',e.place || 'Sortie',e.location ? 'Lieu partagé' : 'Sortie enregistrée'],
-    outing_end:['🏠','Retour','De retour de sortie'],
-    meal_adjustment:['🍌',`Adaptation · ${e.mealLabel || 'Repas'}`,e.text || 'Menu adapté'],
-    task_exception:['⚠️',e.taskLabel || 'Tâche non faite',e.text || 'Exception signalée'],
-    note:['ℹ️','À savoir',e.text],
-    incident:['⚠️','Incident',e.text],
-    moment:['✨','Bon moment',e.text],
-    expense:['💶',e.label || 'Dépense',`${e.amount.toFixed(2).replace('.',',')} € · ${e.payment==='wallet'?'Caisse famille':'À rembourser'}`],
-    shopping:['🛒','Courses',`${e.item} ajouté`]
-  };
-  return map[e.type] || ['•','Événement',e.text || ''];
+  switch(e.type){
+    case 'care_start': return ['👋','Aurore commence sa garde','La journée est lancée'];
+    case 'care_end': return ['👋','Fin de garde','Passation disponible'];
+    case 'nap_start': return ['😴','Sieste','Constance s’est endormie'];
+    case 'nap_end': return ['☀️','Réveil',e.duration || 'Sieste terminée'];
+    case 'outing_start': return ['🌳',e.place || 'Sortie',e.location ? 'Lieu partagé' : 'Sortie enregistrée'];
+    case 'outing_end': return ['🏠','Retour','De retour de sortie'];
+    case 'meal_adjustment': return ['🍌',`Adaptation · ${e.mealLabel || 'Repas'}`,e.text || 'Menu adapté'];
+    case 'task_exception': return ['⚠️',e.taskLabel || 'Tâche non faite',e.text || 'Exception signalée'];
+    case 'note': return ['ℹ️','À savoir',e.text || ''];
+    case 'incident': return ['⚠️','Incident',e.text || ''];
+    case 'moment': return ['✨','Bon moment',e.text || ''];
+    case 'expense': {
+      const amount = Number.isFinite(Number(e.amount)) ? Number(e.amount) : 0;
+      return ['💶',e.label || 'Dépense',`${amount.toFixed(2).replace('.',',')} € · ${e.payment==='wallet'?'Caisse famille':'À rembourser'}`];
+    }
+    case 'shopping': return ['🛒','Courses',`${e.item || 'Article'} ajouté`];
+    default: return ['•','Événement',e.text || ''];
+  }
 }
 
 function header(){
@@ -64,6 +68,7 @@ function currentStatus(){
   const nap = currentNap(); if(nap) return {icon:'😴',title:'Sieste',meta:`depuis ${fmtTime(nap.at)}`,image:'/assets/family.svg'};
   const outing = activeOuting(); if(outing) return {icon:'🌳',title:outing.place || 'En sortie',meta:outing.location?'Position partagée':'sortie en cours',image:'/assets/park.svg'};
   if(state.careSession?.status==='active') return {icon:'🏡',title:'À la maison',meta:`avec Aurore depuis ${fmtTime(state.careSession.startedAt)}`,image:'/assets/family.svg'};
+  if(state.careSession?.status==='ended') return {icon:'✓',title:'Garde terminée',meta:`Aurore · ${fmtTime(state.careSession.startedAt)} → ${fmtTime(state.careSession.endedAt)}`,image:'/assets/family.svg'};
   return {icon:'☀️',title:'Journée à venir',meta:`Aurore · ${state.schedule.plannedStart} → ${state.schedule.plannedEnd}`,image:'/assets/family.svg'};
 }
 
@@ -76,13 +81,30 @@ function nextPlan(){
 
 function todayHero(){
   const active = state.careSession?.status==='active';
+  const ended = state.careSession?.status==='ended';
   if(state.role==='nanny'){
+    if(ended){
+      return `<div class="hero"><section class="hero-card">
+        <div class="eyebrow"><span class="status-dot"></span>Garde terminée</div>
+        <h1>Merci Aurore ✨</h1>
+        <p class="hero-sub">La passation de Constance a été transmise à ${fmtTime(state.careSession.endedAt)}. Tu n’as rien d’autre à valider pour aujourd’hui.</p>
+        <div class="hero-actions"><button class="btn btn-primary" data-tab="history">Voir la journée</button><button class="btn btn-soft" data-action="meals">Repas du jour</button></div>
+      </section><div class="hero-visual"><img src="/assets/family.svg" alt="Illustration d'une nounou avec un enfant"></div></div>`;
+    }
     return `<div class="hero"><section class="hero-card">
       <div class="eyebrow"><span class="status-dot"></span>${active?'Garde en cours':'Aujourd’hui'}</div>
       <h1>Bonjour Aurore 👋</h1>
       <p class="hero-sub">${active ? `Constance est avec toi depuis ${fmtTime(state.careSession.startedAt)}. L’app ne te demande rien tant que tout se passe comme prévu.` : `Ta garde est prévue de ${state.schedule.plannedStart} à ${state.schedule.plannedEnd}. Voici seulement ce qu’il faut retenir.`}</p>
       <div class="hero-actions">${active?`<button class="btn btn-primary" data-action="end-care">Terminer la garde</button><button class="btn btn-soft" data-action="open-add">＋ Ajouter</button>`:`<button class="btn btn-brand" data-action="start-care">Commencer ma garde</button><button class="btn btn-soft" data-action="briefing">Voir le briefing</button>`}</div>
     </section><div class="hero-visual"><img src="/assets/family.svg" alt="Illustration d'une nounou avec un enfant"></div></div>`;
+  }
+  if(ended){
+    return `<div class="hero"><section class="hero-card">
+      <div class="eyebrow"><span class="status-dot"></span>Journée transmise</div>
+      <h1>${state.child.name}</h1>
+      <p class="hero-sub">Aurore a terminé sa garde à ${fmtTime(state.careSession.endedAt)}. Les adaptations et exceptions importantes sont regroupées juste en dessous.</p>
+      <div class="hero-actions"><button class="btn btn-primary" data-tab="history">Voir la journée</button><button class="btn btn-soft" data-action="meals">Repas du jour</button></div>
+    </section><div class="hero-visual"><img src="/assets/family.svg" alt="Illustration chaleureuse d'une nounou avec un enfant"></div></div>`;
   }
   return `<div class="hero"><section class="hero-card">
     <div class="eyebrow"><span class="status-dot"></span>${active?'Tout va bien':'Journée prévue'}</div>
@@ -93,7 +115,7 @@ function todayHero(){
 }
 
 function nowCard(){
-  const s=currentStatus(); const next=nextPlan();
+  const s=currentStatus(); const next=state.careSession?.status==='ended' ? null : nextPlan();
   return `<section class="card now-card"><div class="now-cover"><img src="${s.image}" alt="Illustration de la journée"></div><div class="now-body">
     <div class="now-main"><div class="now-icon">${s.icon}</div><div class="now-copy"><div class="now-label">Maintenant</div><div class="now-title">${escapeHtml(s.title)}</div><div class="now-meta">${escapeHtml(s.meta)}</div></div>${activeOuting()&&state.role==='nanny'?`<button class="mini-btn" data-action="end-outing">Retour</button>`:''}</div>
     ${next?`<div class="next-block"><div class="next-time">${next.time}</div><div class="next-copy"><strong>Ensuite · ${escapeHtml(next.label)}</strong><span>${escapeHtml(next.menu || next.label)}</span></div>${next.kind==='meal'&&state.role==='nanny'?`<button class="mini-btn" data-action="adjust-meal" data-id="${next.id}">Adapter</button>`:''}</div>`:''}
@@ -174,7 +196,7 @@ function render(){
   app.innerHTML = `<div class="app-shell">${header()}<main>${page}</main>${bottomNav()}${state.activeTab==='today'&&state.role==='nanny'?`<button class="fab" data-action="open-add" aria-label="Ajouter">${icon('plus')}</button>`:''}</div>`;
 }
 
-function openSheet(content){ sheetRoot.innerHTML=`<div class="sheet-backdrop" data-action="close-sheet"><div class="sheet" role="dialog" aria-modal="true" onclick="event.stopPropagation()"><div class="sheet-handle"></div>${content}</div></div>`; }
+function openSheet(content){ sheetRoot.innerHTML=`<div class="sheet-backdrop"><div class="sheet" role="dialog" aria-modal="true"><div class="sheet-handle"></div>${content}</div></div>`; }
 function closeSheet(){ sheetRoot.innerHTML=''; }
 function sheetHeader(title,sub=''){ return `<div class="sheet-header"><div><div class="sheet-title">${title}</div>${sub?`<div class="sheet-sub">${sub}</div>`:''}</div><button class="close-btn" data-action="close-sheet">${icon('x')}</button></div>`; }
 
@@ -207,7 +229,7 @@ function mealsSheet(){
 
 function editMealsSheet(){
   const meals=state.plans.filter(p=>p.kind==='meal').sort((a,b)=>a.time.localeCompare(b.time));
-  openSheet(`${sheetHeader('Modifier les repas','Simple et directement visible par Aurore')}<form class="form" id="meal-plan-form">${meals.map(m=>`<div class="sheet-section"><div class="field"><label>${escapeHtml(m.label)} · ${m.time}</label><input name="menu-${m.id}" value="${escapeHtml(m.menu)}"></div><div class="field"><label>Préparation</label><select name="prep-${m.id}"><option value="PREPARED" ${m.preparation==='PREPARED'?'selected':''}>Déjà préparé</option><option value="GIVE" ${m.preparation==='GIVE'?'selected':''}>À donner</option><option value="NANNY_PREP" ${m.preparation==='NANNY_PREP'?'selected':''}>À préparer par Aurore</option></select></div></div>`).join('')}<button class="btn btn-brand full" type="submit">Enregistrer les repas</button></form>`);
+  openSheet(`${sheetHeader('Modifier les repas','Simple et directement visible par Aurore')}<form class="form" id="meal-plan-form">${meals.map((m,i)=>`<div class="sheet-section"><div class="field"><label for="menu-${m.id}">${escapeHtml(m.label)} · ${m.time}</label><input id="menu-${m.id}" name="menu-${m.id}" value="${escapeHtml(m.menu)}"></div><div class="field"><label for="prep-${m.id}">Préparation</label><select id="prep-${m.id}" name="prep-${m.id}"><option value="PREPARED" ${m.preparation==='PREPARED'?'selected':''}>Déjà préparé</option><option value="GIVE" ${m.preparation==='GIVE'?'selected':''}>À donner</option><option value="NANNY_PREP" ${m.preparation==='NANNY_PREP'?'selected':''}>À préparer par Aurore</option></select></div></div>`).join('')}<button class="btn btn-brand full" type="submit">Enregistrer les repas</button></form>`);
 }
 
 function adjustMealSheet(id){
@@ -221,32 +243,32 @@ function adjustMealSheet(id){
 
 function mealReplaceSheet(id){
   const meal=state.plans.find(p=>p.id===id);
-  openSheet(`${sheetHeader('Remplacer un aliment',`Prévu : ${escapeHtml(meal.menu)}`)}<form class="form" id="meal-replace-form" data-id="${id}"><div class="field"><label>Qu’est-ce qui manque ?</label><input name="missing" placeholder="Ex. Yaourt" required></div><div class="field"><label>Remplacé par</label><input name="replacement" placeholder="Ex. Banane" required></div><button class="btn btn-brand full" type="submit">Enregistrer l’adaptation</button></form>`);
+  openSheet(`${sheetHeader('Remplacer un aliment',`Prévu : ${escapeHtml(meal.menu)}`)}<form class="form" id="meal-replace-form" data-id="${id}"><div class="field"><label for="meal-missing">Qu’est-ce qui manque ?</label><input id="meal-missing" name="missing" placeholder="Ex. Yaourt" required></div><div class="field"><label for="meal-replacement">Remplacé par</label><input id="meal-replacement" name="replacement" placeholder="Ex. Banane" required></div><button class="btn btn-brand full" type="submit">Enregistrer l’adaptation</button></form>`);
 }
 
 function genericTextSheet(type,title,sub,placeholder){
-  openSheet(`${sheetHeader(title,sub)}<form class="form" id="text-event-form" data-type="${type}"><div class="field"><label>Détail</label><textarea name="text" placeholder="${placeholder}" required></textarea></div><button class="btn ${type==='incident'?'btn-brand':'btn-primary'} full" type="submit">Enregistrer</button></form>`);
+  openSheet(`${sheetHeader(title,sub)}<form class="form" id="text-event-form" data-type="${type}"><div class="field"><label for="event-text">Détail</label><textarea id="event-text" name="text" placeholder="${placeholder}" required></textarea></div><button class="btn ${type==='incident'?'btn-brand':'btn-primary'} full" type="submit">Enregistrer</button></form>`);
 }
 
 function outingSheet(){
-  openSheet(`${sheetHeader('Nouvelle sortie','Le GPS est ponctuel, jamais permanent.')}<form class="form" id="outing-form"><div class="field"><label>Lieu</label><input name="place" placeholder="Parc Montsouris, bibliothèque…" required></div><label class="banner"><input type="checkbox" name="gps" checked> <div><strong>Partager ma position ponctuelle</strong><br><span class="muted">Uniquement au moment où tu démarres la sortie.</span></div></label><button class="btn btn-brand full" type="submit">Démarrer la sortie</button></form>`);
+  openSheet(`${sheetHeader('Nouvelle sortie','Le GPS est ponctuel, jamais permanent.')}<form class="form" id="outing-form"><div class="field"><label for="outing-place">Lieu</label><input id="outing-place" name="place" placeholder="Parc Montsouris, bibliothèque…" required></div><label class="banner"><input type="checkbox" name="gps" checked> <div><strong>Partager ma position ponctuelle</strong><br><span class="muted">Uniquement au moment où tu démarres la sortie.</span></div></label><button class="btn btn-brand full" type="submit">Démarrer la sortie</button></form>`);
 }
 
 function expenseSheet(){
-  openSheet(`${sheetHeader('Ajouter une dépense','Les parents sont informés, pas d’approbation inutile.')}<form class="form" id="expense-form"><div class="field"><label>Montant</label><input name="amount" type="number" min="0.01" step="0.01" placeholder="12,40" required></div><div class="field"><label>Achat / justification</label><input name="label" placeholder="Monoprix · yaourts et compotes" required></div><div class="field"><label>Payé avec</label><select name="payment"><option value="wallet">Caisse de la famille</option><option value="nanny">Argent d’Aurore · à rembourser</option></select></div><button class="btn btn-brand full" type="submit">Enregistrer la dépense</button></form>`);
+  openSheet(`${sheetHeader('Ajouter une dépense','Les parents sont informés, pas d’approbation inutile.')}<form class="form" id="expense-form"><div class="field"><label for="expense-amount">Montant</label><input id="expense-amount" name="amount" type="number" min="0.01" step="0.01" placeholder="12,40" required></div><div class="field"><label for="expense-label">Achat / justification</label><input id="expense-label" name="label" placeholder="Monoprix · yaourts et compotes" required></div><div class="field"><label for="expense-payment">Payé avec</label><select id="expense-payment" name="payment"><option value="wallet">Caisse de la famille</option><option value="nanny">Argent d’Aurore · à rembourser</option></select></div><button class="btn btn-brand full" type="submit">Enregistrer la dépense</button></form>`);
 }
 
 function shoppingAddSheet(prefill=''){
-  openSheet(`${sheetHeader('Ajouter aux courses','Visible immédiatement par le parent et Aurore.')}<form class="form" id="shopping-form"><div class="field"><label>Produit</label><input name="item" value="${escapeHtml(prefill)}" placeholder="Yaourts" required></div><button class="btn btn-brand full" type="submit">Ajouter</button></form>`);
+  openSheet(`${sheetHeader('Ajouter aux courses','Visible immédiatement par le parent et Aurore.')}<form class="form" id="shopping-form"><div class="field"><label for="shopping-item">Produit</label><input id="shopping-item" name="item" value="${escapeHtml(prefill)}" placeholder="Yaourts" required></div><button class="btn btn-brand full" type="submit">Ajouter</button></form>`);
 }
 
 function taskExceptionSheet(id){
   const task=state.plans.find(p=>p.id===id);
-  openSheet(`${sheetHeader('Signaler une exception',escapeHtml(task.label))}<form class="form" id="task-exception-form" data-id="${id}"><div class="field"><label>Pourquoi ?</label><textarea name="text" placeholder="Ex. Bain non fait : Constance était très fatiguée." required></textarea></div><button class="btn btn-brand full" type="submit">Informer le parent</button></form>`);
+  openSheet(`${sheetHeader('Signaler une exception',escapeHtml(task.label))}<form class="form" id="task-exception-form" data-id="${id}"><div class="field"><label for="task-reason">Pourquoi ?</label><textarea id="task-reason" name="text" placeholder="Ex. Bain non fait : Constance était très fatiguée." required></textarea></div><button class="btn btn-brand full" type="submit">Informer le parent</button></form>`);
 }
 
 function endCareSheet(){
-  const exceptions=state.events.filter(e=>['task_exception','incident','meal_adjustment','note','expense'].includes(e.type));
+  const exceptions=state.events.filter(e=>['task_exception','incident','meal_adjustment','note','expense','moment'].includes(e.type));
   openSheet(`${sheetHeader('Passation','La journée résumée sans checklist inutile.')}<div class="banner"><span>✓</span><div>Tout ce qui n’est pas signalé ci-dessous est considéré comme s’étant déroulé normalement.</div></div><div class="sheet-section"><div class="card-title">Aujourd’hui</div><div class="info-list" style="margin-top:10px">${exceptions.length?exceptions.map(e=>{const m=eventMeta(e);return `<div class="info-row"><div class="info-emoji">${m[0]}</div><div class="info-text"><strong>${escapeHtml(m[1])}</strong><br><span class="muted">${escapeHtml(m[2]||'')}</span></div></div>`}).join(''):`<div class="info-row"><div class="info-emoji">✨</div><div class="info-text">Aucune exception. Tout s’est passé comme prévu.</div></div>`}</div></div><button class="btn btn-primary full" data-action="confirm-end-care">Terminer et transmettre</button>`);
 }
 
@@ -301,6 +323,7 @@ function doAction(el){
 }
 
 document.addEventListener('click',(ev)=>{
+  if(ev.target instanceof Element && ev.target.classList.contains('sheet-backdrop')){ closeSheet(); return; }
   const role=ev.target.closest('[data-role]'); if(role){state.role=role.dataset.role;state.activeTab='today';commit();return}
   const tab=ev.target.closest('[data-tab]'); if(tab){state.activeTab=tab.dataset.tab;commit();return}
   const actionEl=ev.target.closest('[data-action]'); if(actionEl) doAction(actionEl);
