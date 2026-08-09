@@ -2,6 +2,8 @@
 
 Application mobile-first pour organiser le quotidien des enfants entre plusieurs parents, nounous et baby-sitters.
 
+> Production Git connectée à Vercel — déploiements automatiques depuis `main`.
+
 ## Architecture
 
 - Next.js App Router + TypeScript
