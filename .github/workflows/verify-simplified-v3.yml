@@ -8,16 +8,26 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - name: Diagnose public demo
+      - name: Check public landing and demos
         shell: bash
         run: |
           set -euo pipefail
-          url='https://nanny-youpiii-v3.vercel.app/demo?role=nanny&section=shopping'
-          code="$(curl -sS -L --max-time 20 -o /tmp/page.html -w '%{http_code}' "$url")"
-          echo "HTTP=$code"
-          echo '--- visible text markers ---'
-          sed 's/<[^>]*>/ /g' /tmp/page.html | tr -s ' ' | head -c 4000
-          echo
-          test "$code" = '200'
-          grep -Fq 'Courses & caisse' /tmp/page.html
-          grep -Fq 'Acheté' /tmp/page.html
+          base='https://nanny-youpiii-v3.vercel.app'
+          check() {
+            url="$1"; needle="$2"
+            for i in {1..12}; do
+              html="$(curl -fsSL --max-time 20 "$url" || true)"
+              if printf '%s' "$html" | grep -Fq "$needle"; then
+                echo "OK $url -> $needle"
+                return 0
+              fi
+              sleep 5
+            done
+            echo "Missing '$needle' at $url" >&2
+            exit 1
+          }
+          check "$base/" 'Tout ce qui concerne vos enfants'
+          check "$base/demo?role=parent&section=today" 'Bonjour Camille'
+          check "$base/demo?role=nanny&section=shopping" 'Courses'
+          check "$base/demo?role=nanny&section=shopping" 'caisse'
+          check "$base/demo?role=nanny&section=shopping" 'Acheté'
