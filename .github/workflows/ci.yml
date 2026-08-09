@@ -18,9 +18,9 @@ jobs:
       - run: npm test
       - name: Export Drizzle DDL
         run: |
-          rm -rf drizzle-export
-          npx drizzle-kit generate --out=drizzle-export
+          rm -rf drizzle
+          npx drizzle-kit generate --config=drizzle.config.ts
           echo '===NANNY_SCHEMA_SQL_BEGIN==='
-          cat drizzle-export/*.sql
+          cat drizzle/*.sql
           echo '===NANNY_SCHEMA_SQL_END==='
       - run: npm run build
