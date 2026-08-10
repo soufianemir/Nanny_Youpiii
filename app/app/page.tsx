@@ -26,8 +26,8 @@ import { roleLabel, today } from "@/components/app/utils";
 export const dynamic = "force-dynamic";
 
 const quickMeta:Record<V4QuickKind,{label:string;description:string;icon:QuickAddOption["icon"]}>={
-  activity:{label:"Activité",description:"Ajouter au planning",icon:"activity"},
-  task:{label:"Tâche",description:"Une action à ne pas oublier",icon:"task"},
+  activity:{label:"Planning",description:"Ajouter ce qui est prévu",icon:"calendar"},
+  task:{label:"Planning",description:"Ajouter ce qui est prévu",icon:"calendar"},
   instruction:{label:"Consigne",description:"Important, interdit ou habitude",icon:"alert"},
   shopping:{label:"Course",description:"Ajouter un produit à acheter",icon:"shopping"},
   shift:{label:"Garde",description:"Ajouter une garde ponctuelle",icon:"people"},
@@ -102,7 +102,7 @@ export default async function AppPage({searchParams}:{searchParams:Promise<Recor
 
   const quickOptions:QuickAddOption[]=quickKinds({parent:parent&&!preview,canProgram:hasPermission(actualMembership,"program"),canTasks:hasPermission(actualMembership,"tasks"),canJournal:hasPermission(actualMembership,"journal"),canShopping:hasPermission(actualMembership,"shopping"),canAdmin:admin}).map(kind=>{
     const meta=quickMeta[kind];
-    const href=kind==="activity"?q({section:"planning",compose:"activity"}):kind==="task"?q({section:"planning",compose:"task"}):kind==="instruction"?q({section:"more",area:"rules",compose:"instruction"}):kind==="shopping"?q({section:"more",area:"shopping",compose:"shopping"}):q({section:"more",area:"team",compose:"shift"});
+    const href=kind==="activity"||kind==="task"?q({section:"planning",compose:"item"}):kind==="instruction"?q({section:"more",area:"rules",compose:"instruction"}):kind==="shopping"?q({section:"more",area:"shopping",compose:"shopping"}):q({section:"more",area:"team",compose:"shift"});
     return {...meta,href};
   });
 
@@ -111,7 +111,7 @@ export default async function AppPage({searchParams}:{searchParams:Promise<Recor
     {preview&&<div className="v4-preview"><span><Icon name="eye" size={17}/> Vue de <strong>{memberName(viewMembership)}</strong>{snapshot.previewRestricted?" · filtrée à vos enfants":""}</span><Link className="v4-text-action" href={`/app?space=${selectedSpaceId}&section=today&date=${todayIso}`}>Quitter</Link></div>}
     {section==="today"&&<Today spaceId={selectedSpaceId} selectedDate={selectedDate} snapshot={snapshot} memberName={memberName} actualMembership={actualMembership} viewMembership={viewMembership} parent={parent} preview={preview} q={q} fullTeam={fullTeam} userFirstName={session.user.name?.split(" ")[0]||""} canActProgram={canActProgram} canActTasks={canActTasks} timezone={own.space.timezone}/>} 
     {section==="planning"&&<Planning spaceId={selectedSpaceId} selectedDate={selectedDate} snapshot={snapshot} caregivers={caregivers} children={snapshot.children} routines={routines} memberName={memberName} canEditProgram={parent&&!preview&&hasPermission(actualMembership,"program")} canEditTasks={parent&&!preview&&hasPermission(actualMembership,"tasks")} canActProgram={canActProgram} canActTasks={canActTasks} q={q} timezone={own.space.timezone} compose={params.compose}/>} 
-    {section==="journal"&&<Journal spaceId={selectedSpaceId} selectedDate={selectedDate} snapshot={snapshot} team={journalMembers} memberName={memberName} canAdd={!preview&&hasPermission(actualMembership,"journal")} q={q} compose={params.compose}/>} 
+    {section==="journal"&&<Journal spaceId={selectedSpaceId} selectedDate={selectedDate} snapshot={snapshot} team={journalMembers} memberName={memberName} canAdd={!preview&&hasPermission(actualMembership,"journal")} currentMemberId={actualMembership.id} canEditAll={parent&&!preview} q={q} compose={params.compose}/>} 
     {section==="more"&&moreArea==="home"&&<MoreHub q={q} parent={parent&&!preview} canChildren={canChildren} canTeam={parent&&!preview} canShopping={canShopping} canCash={canSeeCash} canRules={canManageRules} showSession/>} 
     {section==="more"&&moreArea==="children"&&canChildren&&<ChildrenPanel spaceId={selectedSpaceId} children={snapshot.children} canEdit={canChildren} q={q} compose={params.compose}/>} 
     {section==="more"&&moreArea==="team"&&parent&&!preview&&<TeamPanel spaceId={selectedSpaceId} team={fullTeam} children={snapshot.children} invitations={invitations} memberName={memberName} selectedDate={selectedDate} q={q} scheduleRules={scheduleRules} memberChildLinks={rawTeamLinks} canAdmin={admin} previewableMemberIds={previewableMemberIds} compose={params.compose}/>} 
