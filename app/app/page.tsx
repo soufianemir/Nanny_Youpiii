@@ -9,7 +9,6 @@ import { usersByIds } from "@/lib/directory";
 import { serverConfigured } from "@/lib/env";
 import { canSeeCashFromPermissions, sectionDate } from "@/lib/coherence";
 import { normalizeMoreArea, normalizeSection, quickKinds, visiblePrimaryNav, type V4QuickKind } from "@/lib/v4-navigation";
-import { SignOutButton } from "@/components/auth-forms";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { AppHeader, AppShell, BottomNavigation } from "@/components/ui/app-shell";
 import { QuickAdd, type QuickAddOption } from "@/components/ui/quick-add";
@@ -107,20 +106,13 @@ export default async function AppPage({searchParams}:{searchParams:Promise<Recor
     return {...meta,href};
   });
 
-  const header=<AppHeader spaceName={own.space.name} context={preview?`Vue ${memberName(viewMembership)}`:own.space.name} action={<SignOutButton/>}/>;
-  const navigation=<BottomNavigation items={navItems} activeId={section}/>;
-
-  return <AppShell header={header} navigation={navigation} floatingAction={<QuickAdd options={quickOptions}/>}>
+  return <AppShell header={<AppHeader spaceName={own.space.name} context={preview?`Vue ${memberName(viewMembership)}`:own.space.name}/>} navigation={<BottomNavigation items={navItems} activeId={section}/>} floatingAction={<QuickAdd options={quickOptions}/> }>
     <AutoRefresh/>
     {preview&&<div className="v4-preview"><span><Icon name="eye" size={17}/> Vue de <strong>{memberName(viewMembership)}</strong>{snapshot.previewRestricted?" · filtrée à vos enfants":""}</span><Link className="v4-text-action" href={`/app?space=${selectedSpaceId}&section=today&date=${todayIso}`}>Quitter</Link></div>}
-
     {section==="today"&&<Today spaceId={selectedSpaceId} selectedDate={selectedDate} snapshot={snapshot} memberName={memberName} actualMembership={actualMembership} viewMembership={viewMembership} parent={parent} preview={preview} q={q} fullTeam={fullTeam} userFirstName={session.user.name?.split(" ")[0]||""} canActProgram={canActProgram} canActTasks={canActTasks} timezone={own.space.timezone}/>} 
-
     {section==="planning"&&<Planning spaceId={selectedSpaceId} selectedDate={selectedDate} snapshot={snapshot} caregivers={caregivers} children={snapshot.children} routines={routines} memberName={memberName} canEditProgram={parent&&!preview&&hasPermission(actualMembership,"program")} canEditTasks={parent&&!preview&&hasPermission(actualMembership,"tasks")} canActProgram={canActProgram} canActTasks={canActTasks} q={q} timezone={own.space.timezone} compose={params.compose}/>} 
-
     {section==="journal"&&<Journal spaceId={selectedSpaceId} selectedDate={selectedDate} snapshot={snapshot} team={journalMembers} memberName={memberName} canAdd={!preview&&hasPermission(actualMembership,"journal")} q={q} compose={params.compose}/>} 
-
-    {section==="more"&&moreArea==="home"&&<MoreHub q={q} parent={parent&&!preview} canChildren={canChildren} canTeam={parent&&!preview} canShopping={canShopping} canCash={canSeeCash} canRules={canManageRules}/>} 
+    {section==="more"&&moreArea==="home"&&<MoreHub q={q} parent={parent&&!preview} canChildren={canChildren} canTeam={parent&&!preview} canShopping={canShopping} canCash={canSeeCash} canRules={canManageRules} showSession/>} 
     {section==="more"&&moreArea==="children"&&canChildren&&<ChildrenPanel spaceId={selectedSpaceId} children={snapshot.children} canEdit={canChildren} q={q} compose={params.compose}/>} 
     {section==="more"&&moreArea==="team"&&parent&&!preview&&<TeamPanel spaceId={selectedSpaceId} team={fullTeam} children={snapshot.children} invitations={invitations} memberName={memberName} selectedDate={selectedDate} q={q} scheduleRules={scheduleRules} memberChildLinks={rawTeamLinks} canAdmin={admin} previewableMemberIds={previewableMemberIds} compose={params.compose}/>} 
     {section==="more"&&(moreArea==="shopping"||moreArea==="cash")&&(canShopping||canSeeCash)&&<ShoppingCash spaceId={selectedSpaceId} snapshot={snapshot} team={fullTeam} children={snapshot.children} memberName={memberName} viewMembership={viewMembership} parent={parent&&!preview} canAdd={canAddShopping} canPurchase={canPurchase} canSeeCash={canSeeCash} canManageCash={canManageCash} q={q} compose={params.compose}/>} 
