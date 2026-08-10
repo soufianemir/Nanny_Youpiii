@@ -10,7 +10,7 @@ permissions:
 jobs:
   mobile-demo:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 18
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -34,5 +34,22 @@ jobs:
       - name: Gate typecheck
         shell: bash
         run: test "$(cat typecheck.exit)" = "0"
+      - name: Capture build
+        shell: bash
+        run: |
+          set +e
+          npm run build > build.log 2>&1
+          echo $? > build.exit
+          exit 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v5-build-log
+          path: |
+            build.log
+            build.exit
+      - name: Gate build
+        shell: bash
+        run: test "$(cat build.exit)" = "0"
       - run: npx playwright install --with-deps chromium >/dev/null 2>&1
       - run: npm run test:e2e
