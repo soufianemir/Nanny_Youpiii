@@ -8,11 +8,12 @@ import { spacesForUser, spaceSnapshot } from "@/lib/data";
 import { usersByIds } from "@/lib/directory";
 import { serverConfigured } from "@/lib/env";
 import { canSeeCashFromPermissions, sectionDate } from "@/lib/coherence";
-import { normalizeMoreArea, normalizeSection, quickKinds, visiblePrimaryNav, type V4QuickKind } from "@/lib/v4-navigation";
+import { normalizeMoreArea, normalizeSection, visiblePrimaryNav } from "@/lib/v4-navigation";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { AppHeader, AppShell, BottomNavigation } from "@/components/ui/app-shell";
 import { QuickAdd, type QuickAddOption } from "@/components/ui/quick-add";
 import { Icon } from "@/components/ui/icons";
+import { ActivitySheet } from "@/components/app/activity-sheet";
 import { Today } from "@/components/app/today";
 import { Planning } from "@/components/app/planning";
 import { Journal } from "@/components/app/journal";
@@ -24,14 +25,6 @@ import { MoreHub } from "@/components/app/more-hub";
 import { roleLabel, today } from "@/components/app/utils";
 
 export const dynamic = "force-dynamic";
-
-const quickMeta:Record<V4QuickKind,{label:string;description:string;icon:QuickAddOption["icon"]}>={
-  activity:{label:"Planning",description:"Ajouter ce qui est prévu",icon:"calendar"},
-  task:{label:"Planning",description:"Ajouter ce qui est prévu",icon:"calendar"},
-  instruction:{label:"Consigne",description:"Important, interdit ou habitude",icon:"alert"},
-  shopping:{label:"Course",description:"Ajouter un produit à acheter",icon:"shopping"},
-  shift:{label:"Garde",description:"Ajouter une garde ponctuelle",icon:"people"},
-};
 
 export default async function AppPage({searchParams}:{searchParams:Promise<Record<string,string|undefined>>}){
   if(!serverConfigured())redirect("/");
@@ -99,23 +92,28 @@ export default async function AppPage({searchParams}:{searchParams:Promise<Recor
   const canActTasks=!preview&&hasPermission(actualMembership,"tasks");
   const canAddShopping=!preview&&hasPermission(actualMembership,"shopping");
   const canPurchase=!preview&&!parent&&hasPermission(actualMembership,"shopping");
+  const canCreateActivity=!preview&&hasPermission(actualMembership,"program");
+  const currentArea=section==="more"?moreArea:"";
+  const closeActivityHref=q({section,area:currentArea,compose:""});
+  const quickOptions:QuickAddOption[]=canCreateActivity?[{label:"Ajouter une activité",description:"Repas, sieste, bain…",icon:"activity",href:q({section,area:currentArea,compose:"activity"})}]:[];
 
-  const quickOptions:QuickAddOption[]=quickKinds({parent:parent&&!preview,canProgram:hasPermission(actualMembership,"program"),canTasks:hasPermission(actualMembership,"tasks"),canJournal:hasPermission(actualMembership,"journal"),canShopping:hasPermission(actualMembership,"shopping"),canAdmin:admin}).map(kind=>{
-    const meta=quickMeta[kind];
-    const href=kind==="activity"||kind==="task"?q({section:"planning",compose:"item"}):kind==="instruction"?q({section:"more",area:"rules",compose:"instruction"}):kind==="shopping"?q({section:"more",area:"shopping",compose:"shopping"}):q({section:"more",area:"team",compose:"shift"});
-    return {...meta,href};
-  });
+  const editId=params.compose?.startsWith("activity-edit-")?params.compose.slice("activity-edit-".length):undefined;
+  const editActivity=canCreateActivity&&editId?snapshot.program.find(item=>item.id===editId):undefined;
+  const editChildIds=editActivity?(await db.select({id:s.programChildren.childId}).from(s.programChildren).where(eq(s.programChildren.programItemId,editActivity.id))).map(item=>item.id):[];
+  const editMemberIds=editActivity?(await db.select({id:s.programAssignees.memberId}).from(s.programAssignees).where(eq(s.programAssignees.programItemId,editActivity.id))).map(item=>item.id):[];
+  const showActivity=canCreateActivity&&(params.compose==="activity"||params.compose==="item"||Boolean(editActivity));
 
   return <AppShell header={<AppHeader spaceName={own.space.name} context={preview?`Vue ${memberName(viewMembership)}`:own.space.name}/>} navigation={<BottomNavigation items={navItems} activeId={section}/>} floatingAction={<QuickAdd options={quickOptions}/> }>
     <AutoRefresh/>
     {preview&&<div className="v4-preview"><span><Icon name="eye" size={17}/> Vue de <strong>{memberName(viewMembership)}</strong>{snapshot.previewRestricted?" · filtrée à vos enfants":""}</span><Link className="v4-text-action" href={`/app?space=${selectedSpaceId}&section=today&date=${todayIso}`}>Quitter</Link></div>}
     {section==="today"&&<Today spaceId={selectedSpaceId} selectedDate={selectedDate} snapshot={snapshot} memberName={memberName} actualMembership={actualMembership} viewMembership={viewMembership} parent={parent} preview={preview} q={q} fullTeam={fullTeam} userFirstName={session.user.name?.split(" ")[0]||""} canActProgram={canActProgram} canActTasks={canActTasks} timezone={own.space.timezone}/>} 
-    {section==="planning"&&<Planning spaceId={selectedSpaceId} selectedDate={selectedDate} snapshot={snapshot} caregivers={caregivers} children={snapshot.children} routines={routines} memberName={memberName} canEditProgram={parent&&!preview&&hasPermission(actualMembership,"program")} canEditTasks={parent&&!preview&&hasPermission(actualMembership,"tasks")} canActProgram={canActProgram} canActTasks={canActTasks} q={q} timezone={own.space.timezone} compose={params.compose}/>} 
-    {section==="journal"&&<Journal spaceId={selectedSpaceId} selectedDate={selectedDate} snapshot={snapshot} team={journalMembers} memberName={memberName} canAdd={!preview&&hasPermission(actualMembership,"journal")} currentMemberId={actualMembership.id} canEditAll={parent&&!preview} q={q} compose={params.compose}/>} 
+    {section==="planning"&&<Planning spaceId={selectedSpaceId} selectedDate={selectedDate} snapshot={snapshot} caregivers={caregivers} memberName={memberName} canActProgram={canActProgram} canActTasks={canActTasks} q={q} timezone={own.space.timezone}/>} 
+    {section==="journal"&&<Journal selectedDate={selectedDate} snapshot={snapshot} team={journalMembers} memberName={memberName} canEditActivities={canCreateActivity} q={q}/>} 
     {section==="more"&&moreArea==="home"&&<MoreHub q={q} parent={parent&&!preview} canChildren={canChildren} canTeam={parent&&!preview} canShopping={canShopping} canCash={canSeeCash} canRules={canManageRules} showSession/>} 
     {section==="more"&&moreArea==="children"&&canChildren&&<ChildrenPanel spaceId={selectedSpaceId} children={snapshot.children} canEdit={canChildren} q={q} compose={params.compose}/>} 
     {section==="more"&&moreArea==="team"&&parent&&!preview&&<TeamPanel spaceId={selectedSpaceId} team={fullTeam} children={snapshot.children} invitations={invitations} memberName={memberName} selectedDate={selectedDate} q={q} scheduleRules={scheduleRules} memberChildLinks={rawTeamLinks} canAdmin={admin} previewableMemberIds={previewableMemberIds} compose={params.compose}/>} 
     {section==="more"&&(moreArea==="shopping"||moreArea==="cash")&&(canShopping||canSeeCash)&&<ShoppingCash spaceId={selectedSpaceId} snapshot={snapshot} team={fullTeam} children={snapshot.children} memberName={memberName} viewMembership={viewMembership} parent={parent&&!preview} canAdd={canAddShopping} canPurchase={canPurchase} canSeeCash={canSeeCash} canManageCash={canManageCash} q={q} compose={params.compose}/>} 
     {section==="more"&&moreArea==="rules"&&parent&&!preview&&<RulesPanel spaceId={selectedSpaceId} snapshot={snapshot} team={fullTeam} routines={routines} canManage={canManageRules} q={q} compose={params.compose}/>} 
+    {showActivity&&<ActivitySheet spaceId={selectedSpaceId} selectedDate={selectedDate} children={snapshot.children} caregivers={caregivers} memberName={memberName} parent={parent} closeHref={closeActivityHref} item={editActivity} childIds={editChildIds} memberIds={editMemberIds}/>} 
   </AppShell>;
 }
