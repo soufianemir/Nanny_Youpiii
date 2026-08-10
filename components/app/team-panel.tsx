@@ -1,32 +1,105 @@
 import Link from "next/link";
-import type { invitations as invitationsTable, members as membersTable, children as childrenTable, memberChildren as memberChildrenTable, scheduleRules as scheduleRulesTable } from "@/db/schema";
+import { and, asc, eq } from "drizzle-orm";
+import { db } from "@/db";
+import * as s from "@/db/schema";
+import type { invitations as invitationsTable, members as membersTable, children as childrenTable, memberChildren as memberChildrenTable, scheduleRules as scheduleRulesTable, shifts as shiftsTable } from "@/db/schema";
 import { inviteMemberAction, updateMemberAccessAction, cancelInvitationAction, resendInvitationAction } from "@/app/actions/space";
-import { addShiftAction, saveScheduleRuleAction } from "@/app/actions/schedule";
 import { isParentRole } from "@/lib/security";
+import { EXCEPTION_SHIFT_NOTE } from "@/lib/coherence";
+import { CARE_PERIOD_PREFIX, parseCarePeriodNote, schoolYearPeriod, weekdayFromIso } from "@/lib/care-schedule";
+import { CareScheduleEditor, type CareDayInput, type CareException } from "@/components/app/care-schedule-editor";
 import { Icon } from "@/components/ui/icons";
 import { Avatar, Card, EmptyState, PageTitle, SectionHeader, StatusBadge } from "@/components/ui/primitives";
 import { roleLabel } from "./utils";
 
-type Member=typeof membersTable.$inferSelect;type Child=typeof childrenTable.$inferSelect;type Invitation=typeof invitationsTable.$inferSelect;type MemberChild=typeof memberChildrenTable.$inferSelect;type ScheduleRule=typeof scheduleRulesTable.$inferSelect;type Query=(extra:Record<string,string>)=>string;
+type Member=typeof membersTable.$inferSelect;
+type Child=typeof childrenTable.$inferSelect;
+type Invitation=typeof invitationsTable.$inferSelect;
+type MemberChild=typeof memberChildrenTable.$inferSelect;
+type ScheduleRule=typeof scheduleRulesTable.$inferSelect;
+type Shift=typeof shiftsTable.$inferSelect;
+type Query=(extra:Record<string,string>)=>string;
 type Props={spaceId:string;team:Member[];children:Child[];invitations:Invitation[];memberName:(member:Member)=>string;selectedDate:string;q:Query;scheduleRules:ScheduleRule[];memberChildLinks:MemberChild[];canAdmin:boolean;previewableMemberIds:Set<string>;compose?:string};
-const permissions=[{key:"journal",label:"Journal",description:"Ajouter et lire les transmissions"},{key:"shopping",label:"Courses",description:"Voir et enregistrer les achats"},{key:"cash",label:"Caisse",description:"Voir le solde disponible"}] as const;
 
-function PlanningSwitch({defaultChecked=true}:{defaultChecked?:boolean}){return <label className="v4-setting-row"><span><strong>Planning</strong><small>Voir ce qui est prévu et le marquer comme fait</small></span><span className="v4-switch"><input type="checkbox" name="planning" defaultChecked={defaultChecked}/><span/></span></label>}
-function PermissionSwitches({includeChildren=false}:{includeChildren?:boolean}){return <div className="v4-settings-group">{includeChildren&&<label className="v4-setting-row"><span><strong>Gérer ses enfants</strong><small>Profil et organisation des enfants accessibles</small></span><span className="v4-switch"><input type="checkbox" name="children" defaultChecked/><span/></span></label>}<PlanningSwitch/>{permissions.map(permission=><label className="v4-setting-row" key={permission.key}><span><strong>{permission.label}</strong><small>{permission.description}</small></span><span className="v4-switch"><input type="checkbox" name={permission.key} defaultChecked/><span/></span></label>)}</div>}
+const permissions=[
+  {key:"journal",label:"Journal",description:"Ajouter et lire les transmissions"},
+  {key:"shopping",label:"Courses",description:"Voir et enregistrer les achats"},
+  {key:"cash",label:"Caisse",description:"Voir le solde disponible"},
+] as const;
+const weekdays:[number,string][]=[[1,"Lundi"],[2,"Mardi"],[3,"Mercredi"],[4,"Jeudi"],[5,"Vendredi"],[6,"Samedi"],[0,"Dimanche"]];
 
-function InviteSheet({spaceId,children,q}:{spaceId:string;children:Child[];q:Query}){const close=q({section:"more",area:"team",compose:""});return <div className="v4-compose-sheet"><Link className="v4-sheet-backdrop" href={close} aria-label="Fermer"/><section className="v4-bottom-sheet" role="dialog" aria-modal="true"><div className="v4-sheet-handle"/><div className="v4-sheet-heading"><div><span className="v4-eyebrow">Équipe</span><h2>Inviter une personne</h2></div><Link href={close} className="v4-icon-button" aria-label="Fermer"><Icon name="close"/></Link></div><form className="v4-form" action={inviteMemberAction}><input type="hidden" name="spaceId" value={spaceId}/><div className="v4-field"><label>E-mail</label><input name="email" type="email" required autoFocus placeholder="prenom@exemple.fr"/></div><div className="v4-field"><label>Rôle</label><select name="role"><option value="NANNY">Nounou</option><option value="BABYSITTER">Baby-sitter</option><option value="PARENT">Autre parent</option><option value="CAREGIVER">Autre intervenant</option></select></div><div className="v4-field"><label>Enfants accessibles</label><div className="v4-check-grid">{children.map(child=><label className="v4-check-row" key={child.id}><input type="checkbox" name="childIds" value={child.id}/>{child.firstName}</label>)}</div></div><div><span className="v4-eyebrow">Accès à l’arrivée</span><PermissionSwitches/><p className="v4-form-help">Planning regroupe activités et anciennes tâches. Courses donne automatiquement accès au solde de caisse nécessaire pour acheter.</p></div><button className="btn brandbtn full">Envoyer l’invitation</button></form></section></div>}
+function PlanningSwitch({defaultChecked=true}:{defaultChecked?:boolean}){
+  return <label className="v4-setting-row"><span><strong>Planning</strong><small>Voir ce qui est prévu et le marquer comme fait</small></span><span className="v4-switch"><input type="checkbox" name="planning" defaultChecked={defaultChecked}/><span/></span></label>;
+}
+function PermissionSwitches({includeChildren=false}:{includeChildren?:boolean}){
+  return <div className="v4-settings-group">{includeChildren&&<label className="v4-setting-row"><span><strong>Gérer ses enfants</strong><small>Profil et organisation des enfants accessibles</small></span><span className="v4-switch"><input type="checkbox" name="children" defaultChecked/><span/></span></label>}<PlanningSwitch/>{permissions.map(permission=><label className="v4-setting-row" key={permission.key}><span><strong>{permission.label}</strong><small>{permission.description}</small></span><span className="v4-switch"><input type="checkbox" name={permission.key} defaultChecked/><span/></span></label>)}</div>;
+}
 
-function ShiftSheet({spaceId,caregivers,date,memberName,q}:{spaceId:string;caregivers:Member[];date:string;memberName:(member:Member)=>string;q:Query}){const close=q({section:"more",area:"team",compose:""});return <div className="v4-compose-sheet"><Link className="v4-sheet-backdrop" href={close} aria-label="Fermer"/><section className="v4-bottom-sheet" role="dialog" aria-modal="true"><div className="v4-sheet-handle"/><div className="v4-sheet-heading"><div><span className="v4-eyebrow">Planning</span><h2>Ajouter une garde</h2></div><Link href={close} className="v4-icon-button" aria-label="Fermer"><Icon name="close"/></Link></div><form className="v4-form" action={addShiftAction}><input type="hidden" name="spaceId" value={spaceId}/><div className="v4-field"><label>Intervenant</label><select name="memberId">{caregivers.map(member=><option key={member.id} value={member.id}>{memberName(member)}</option>)}</select></div><div className="v4-field"><label>Date</label><input name="date" type="date" defaultValue={date}/></div><div className="v4-form-row"><div className="v4-field"><label>Début</label><input name="start" type="time" required/></div><div className="v4-field"><label>Fin</label><input name="end" type="time" required/></div></div><button className="btn brandbtn full">Ajouter la garde</button></form></section></div>}
+function InviteSheet({spaceId,children,q}:{spaceId:string;children:Child[];q:Query}){
+  const close=q({section:"more",area:"team",compose:""});
+  return <div className="v4-compose-sheet"><Link className="v4-sheet-backdrop" href={close} aria-label="Fermer"/><section className="v4-bottom-sheet" role="dialog" aria-modal="true"><div className="v4-sheet-handle"/><div className="v4-sheet-heading"><div><span className="v4-eyebrow">Équipe</span><h2>Inviter une personne</h2></div><Link href={close} className="v4-icon-button" aria-label="Fermer"><Icon name="close"/></Link></div><form className="v4-form" action={inviteMemberAction}>
+    <input type="hidden" name="spaceId" value={spaceId}/>
+    <div className="v4-field"><label>E-mail</label><input name="email" type="email" required autoFocus placeholder="prenom@exemple.fr"/></div>
+    <div className="v4-field"><label>Rôle</label><select name="role"><option value="NANNY">Nounou</option><option value="BABYSITTER">Baby-sitter</option><option value="PARENT">Autre parent</option><option value="CAREGIVER">Autre intervenant</option></select></div>
+    <div className="v4-field"><label>Enfant(s)</label><div className="v4-check-grid">{children.map(child=><label className="v4-check-row" key={child.id}><input type="checkbox" name="childIds" value={child.id} defaultChecked={children.length===1}/>{child.firstName}</label>)}</div></div>
+    <details className="v4-more-options"><summary>Personnaliser les accès <span>Optionnel</span></summary><PermissionSwitches/><p className="v4-form-help">Les accès proposés conviennent à la plupart des nounous. Vous pourrez les modifier plus tard.</p></details>
+    <button className="btn brandbtn full">Envoyer l’invitation</button>
+  </form></section></div>;
+}
 
-export function TeamPanel({spaceId,team,children,invitations,memberName,selectedDate,q,scheduleRules,memberChildLinks,canAdmin,previewableMemberIds,compose}:Props){
+function compactDate(date:string){
+  return new Intl.DateTimeFormat("fr-FR",{day:"numeric",month:"short",year:"numeric"}).format(new Date(`${date}T12:00:00`));
+}
+
+export async function TeamPanel({spaceId,team,children,invitations,memberName,selectedDate,q,scheduleRules,memberChildLinks,canAdmin,previewableMemberIds,compose}:Props){
   const caregivers=team.filter(member=>!isParentRole(member.role));
-  return <div className="v4-stack"><PageTitle eyebrow="Famille" title="Équipe" description="Chaque adulte dispose uniquement des enfants et fonctions dont il a besoin." action={canAdmin?<Link className="btn brandbtn" href={q({section:"more",area:"team",compose:"invite"})}><Icon name="plus"/> Inviter</Link>:undefined}/>
-    {caregivers.length>0&&<Card tone="soft"><SectionHeader title="Voir comme" eyebrow="Contrôle parent"/><div className="v4-preview-people">{caregivers.filter(member=>previewableMemberIds.has(member.id)).map(member=><Link key={member.id} className="v4-preview-person" href={q({section:"today",preview:member.id})}><Avatar name={memberName(member)}/><span><strong>{memberName(member)}</strong><small>{roleLabel(member.role)}</small></span><Icon name="eye"/></Link>)}</div></Card>}
-    {team.length?<div className="v4-grid-2">{team.map(member=>{const assigned=new Set(memberChildLinks.filter(link=>link.memberId===member.id).map(link=>link.childId));const configurable=canAdmin&&member.role!=="PARENT_ADMIN";const planningAllowed=member.permissions?.program!==false||member.permissions?.tasks!==false;return <Card key={member.id}><div className="v4-profile-hero"><Avatar name={memberName(member)} size="lg"/><div><h2>{memberName(member)}</h2><p>{roleLabel(member.role)}{member.label?` · ${member.label}`:""}</p></div></div><div className="v4-profile-chips">{children.filter(child=>assigned.has(child.id)).map(child=><StatusBadge key={child.id}>{child.firstName}</StatusBadge>)}</div>{!isParentRole(member.role)&&previewableMemberIds.has(member.id)&&<Link href={q({section:"today",preview:member.id})} className="btn soft full"><Icon name="eye"/> Voir comme {memberName(member)}</Link>}{configurable&&<details className="v4-profile-settings"><summary>Accès & attributions <Icon name="chevronRight" size={17}/></summary><form className="v4-form" action={updateMemberAccessAction}><input type="hidden" name="spaceId" value={spaceId}/><input type="hidden" name="memberId" value={member.id}/><div className="v4-field"><label>Enfants accessibles</label><div className="v4-check-grid">{children.map(child=><label className="v4-check-row" key={child.id}><input type="checkbox" name="childIds" value={child.id} defaultChecked={assigned.has(child.id)}/>{child.firstName}</label>)}</div></div><div className="v4-settings-group">{member.role==="PARENT"&&<label className="v4-setting-row"><span><strong>Gérer ses enfants</strong><small>Accès au profil et à l’organisation</small></span><span className="v4-switch"><input type="checkbox" name="children" defaultChecked={member.permissions?.children!==false}/><span/></span></label>}<PlanningSwitch defaultChecked={planningAllowed}/>{permissions.map(permission=><label className="v4-setting-row" key={permission.key}><span><strong>{permission.label}</strong><small>{permission.description}</small></span><span className="v4-switch"><input type="checkbox" name={permission.key} defaultChecked={member.permissions?.[permission.key]!==false}/><span/></span></label>)}</div><p className="v4-form-help">Planning regroupe activités et tâches. Si Courses est autorisé, le solde nécessaire à l’achat reste visible automatiquement.</p><button className="btn primary full">Enregistrer les accès</button></form></details>}</Card>})}</div>:<Card><EmptyState title="Aucun intervenant" description="Invitez une nounou, une baby-sitter ou un autre parent." icon="people"/></Card>}
+  const scheduleShifts:Shift[]=canAdmin?await db.select().from(s.shifts).where(and(eq(s.shifts.careSpaceId,spaceId),eq(s.shifts.status,"PLANNED"))).orderBy(asc(s.shifts.shiftDate)):[];
+  return <div className="v4-stack">
+    <PageTitle eyebrow="Famille" title="Équipe & gardes" description="Invitez les adultes et réglez leurs horaires au même endroit." action={canAdmin?<Link className="btn brandbtn" href={q({section:"more",area:"team",compose:"invite"})}><Icon name="plus"/> Inviter</Link>:undefined}/>
 
-    {canAdmin&&<Card><SectionHeader title="Semaine type" eyebrow="Horaires réguliers"/>{caregivers.map(member=><details className="v4-schedule-person" key={member.id}><summary><Avatar name={memberName(member)} size="sm"/><span>{memberName(member)}</span><Icon name="chevronRight"/></summary><div>{[[1,"Lun"],[2,"Mar"],[3,"Mer"],[4,"Jeu"],[5,"Ven"],[6,"Sam"],[0,"Dim"]].map(([weekday,label])=>{const rule=scheduleRules.find(candidate=>candidate.memberId===member.id&&candidate.weekday===weekday);return <form action={saveScheduleRuleAction} className="v4-schedule-row" key={weekday}><input type="hidden" name="spaceId" value={spaceId}/><input type="hidden" name="memberId" value={member.id}/><input type="hidden" name="weekday" value={weekday}/><label><input type="checkbox" name="active" defaultChecked={Boolean(rule)}/><strong>{label}</strong></label><input name="start" type="time" defaultValue={rule?.startTime||"16:00"}/><span>→</span><input name="end" type="time" defaultValue={rule?.endTime||"18:30"}/><button className="v4-icon-button" aria-label={`Enregistrer ${label}`}><Icon name="check"/></button></form>})}</div></details>)}<Link href={q({section:"more",area:"team",compose:"shift"})} className="btn soft full"><Icon name="calendar"/> Ajouter une garde ponctuelle</Link></Card>}
+    {canAdmin&&caregivers.length>0&&<Card>
+      <SectionHeader title="Horaires de garde" eyebrow="Régulier ou ponctuel"/>
+      <p className="v4-form-help">Choisissez une période, cochez les jours et enregistrez une seule fois. Une exception ponctuelle remplace automatiquement l’horaire du jour.</p>
+      <div className="v4-care-people">
+        {caregivers.map(member=>{
+          const memberShifts=scheduleShifts.filter(shift=>shift.memberId===member.id);
+          const recurring=memberShifts.filter(shift=>shift.note?.startsWith(CARE_PERIOD_PREFIX));
+          const savedPeriod=recurring.map(shift=>parseCarePeriodNote(shift.note)).find(Boolean)||schoolYearPeriod(selectedDate);
+          const memberRules=scheduleRules.filter(rule=>rule.memberId===member.id);
+          const initialDays:CareDayInput[]=weekdays.map(([weekday,label])=>{
+            const rule=memberRules.find(candidate=>candidate.weekday===weekday);
+            const generated=recurring.find(shift=>weekdayFromIso(shift.shiftDate)===weekday);
+            return {weekday,label,active:Boolean(rule||generated),start:rule?.startTime||generated?.plannedStart||"16:00",end:rule?.endTime||generated?.plannedEnd||"18:30"};
+          });
+          const exceptions:CareException[]=memberShifts.filter(shift=>shift.note===EXCEPTION_SHIFT_NOTE).map(shift=>({id:shift.id,date:shift.shiftDate,start:shift.plannedStart,end:shift.plannedEnd}));
+          const activeDays=initialDays.filter(day=>day.active).length;
+          return <details className="v4-care-person" key={member.id} open={caregivers.length===1||compose==="shift"}>
+            <summary><Avatar name={memberName(member)} size="sm"/><span><strong>{memberName(member)}</strong><small>{activeDays?`${activeDays} jour${activeDays>1?"s":""}/semaine · ${compactDate(savedPeriod.start)} → ${compactDate(savedPeriod.end)}`:"Horaires à configurer"}</small></span><Icon name="chevronRight" size={18}/></summary>
+            <CareScheduleEditor spaceId={spaceId} memberId={member.id} selectedDate={selectedDate} periodStart={savedPeriod.start} periodEnd={savedPeriod.end} initialDays={initialDays} exceptions={exceptions} defaultOpen={compose==="shift"}/>
+          </details>;
+        })}
+      </div>
+    </Card>}
+
+    {team.length?<div className="v4-grid-2">{team.map(member=>{
+      const assigned=new Set(memberChildLinks.filter(link=>link.memberId===member.id).map(link=>link.childId));
+      const configurable=canAdmin&&member.role!=="PARENT_ADMIN";
+      const planningAllowed=member.permissions?.program!==false||member.permissions?.tasks!==false;
+      return <Card key={member.id}>
+        <div className="v4-profile-hero"><Avatar name={memberName(member)} size="lg"/><div><h2>{memberName(member)}</h2><p>{roleLabel(member.role)}{member.label?` · ${member.label}`:""}</p></div></div>
+        <div className="v4-profile-chips">{children.filter(child=>assigned.has(child.id)).map(child=><StatusBadge key={child.id}>{child.firstName}</StatusBadge>)}</div>
+        {configurable&&<details className="v4-profile-settings"><summary>Accès & enfants <Icon name="chevronRight" size={17}/></summary><form className="v4-form" action={updateMemberAccessAction}>
+          <input type="hidden" name="spaceId" value={spaceId}/><input type="hidden" name="memberId" value={member.id}/>
+          <div className="v4-field"><label>Enfants accessibles</label><div className="v4-check-grid">{children.map(child=><label className="v4-check-row" key={child.id}><input type="checkbox" name="childIds" value={child.id} defaultChecked={assigned.has(child.id)}/>{child.firstName}</label>)}</div></div>
+          <div className="v4-settings-group">{member.role==="PARENT"&&<label className="v4-setting-row"><span><strong>Gérer ses enfants</strong><small>Profil et organisation</small></span><span className="v4-switch"><input type="checkbox" name="children" defaultChecked={member.permissions?.children!==false}/><span/></span></label>}<PlanningSwitch defaultChecked={planningAllowed}/>{permissions.map(permission=><label className="v4-setting-row" key={permission.key}><span><strong>{permission.label}</strong><small>{permission.description}</small></span><span className="v4-switch"><input type="checkbox" name={permission.key} defaultChecked={member.permissions?.[permission.key]!==false}/><span/></span></label>)}</div>
+          <button className="btn primary full">Enregistrer</button>
+        </form></details>}
+      </Card>;
+    })}</div>:<Card><EmptyState title="Aucun intervenant" description="Invitez une nounou, une baby-sitter ou un autre parent." icon="people"/></Card>}
+
+    {caregivers.length>0&&<Card tone="soft"><details className="v4-advanced-details"><summary><span><Icon name="eye"/> Tester la vue d’un intervenant</span><Icon name="chevronRight" size={17}/></summary><div className="v4-preview-people">{caregivers.filter(member=>previewableMemberIds.has(member.id)).map(member=><Link key={member.id} className="v4-preview-person" href={q({section:"today",preview:member.id})}><Avatar name={memberName(member)}/><span><strong>{memberName(member)}</strong><small>{roleLabel(member.role)}</small></span><Icon name="eye"/></Link>)}</div></details></Card>}
 
     {canAdmin&&invitations.length>0&&<Card><SectionHeader title="Invitations"/><div>{invitations.map(invitation=><div className="v4-list-row" key={invitation.id}><span className="v4-row-icon"><Icon name="people"/></span><span className="v4-row-copy"><strong>{invitation.email}</strong><small>{roleLabel(invitation.role)}</small></span><StatusBadge tone={invitation.status==="ACCEPTED"?"success":"neutral"}>{invitation.status}</StatusBadge>{invitation.status!=="ACCEPTED"&&<span className="v4-row-trailing"><form action={resendInvitationAction}><input type="hidden" name="spaceId" value={spaceId}/><input type="hidden" name="invitationId" value={invitation.id}/><button className="v4-icon-button" aria-label="Renvoyer"><Icon name="journal"/></button></form><form action={cancelInvitationAction}><input type="hidden" name="spaceId" value={spaceId}/><input type="hidden" name="invitationId" value={invitation.id}/><button className="v4-icon-button" aria-label="Annuler"><Icon name="close"/></button></form></span>}</div>)}</div></Card>}
-    {compose==="invite"&&<InviteSheet spaceId={spaceId} children={children} q={q}/>} {compose==="shift"&&<ShiftSheet spaceId={spaceId} caregivers={caregivers} date={selectedDate} memberName={memberName} q={q}/>} 
+    {compose==="invite"&&<InviteSheet spaceId={spaceId} children={children} q={q}/>} 
   </div>;
 }
