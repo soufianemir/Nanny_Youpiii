@@ -26,6 +26,14 @@ export function isAdminRole(role: string) { return role === "PARENT_ADMIN"; }
 
 export function hasPermission(membership: typeof members.$inferSelect, permission: string) {
   if (isAdminRole(membership.role)) return true;
+  if(permission==="program"||permission==="tasks"){
+    const program=membership.permissions?.program;
+    const tasks=membership.permissions?.tasks;
+    // V4.1 présente désormais Activité et Tâche comme un seul droit Planning.
+    // Un ancien compte autorisé sur l'un des deux garde donc accès aux deux flux.
+    if(program===true||tasks===true)return true;
+    if(program===false&&tasks===false)return false;
+  }
   const explicit = membership.permissions?.[permission];
   if (typeof explicit === "boolean") return explicit;
   // Backward compatibility for parent accounts created before granular parent permissions existed.

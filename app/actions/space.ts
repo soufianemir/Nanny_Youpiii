@@ -12,15 +12,36 @@ import { authOrganizationIdForSpace, authOrgSlug, latestAuthInvitation } from "@
 import { isParentRole, requireAdmin, requirePermission, requireUser } from "@/lib/security";
 
 function permissionsFromForm(formData:FormData,role:typeof s.memberRole.enumValues[number]){
+  const planning=formData.get("planning")==="on";
   const shopping=formData.get("shopping")==="on";
   return {
     children: role==="PARENT" && formData.get("children")==="on",
-    program: formData.get("program")==="on",
-    tasks: formData.get("tasks")==="on",
+    program: planning || formData.get("program")==="on",
+    tasks: planning || formData.get("tasks")==="on",
     journal: formData.get("journal")==="on",
     shopping,
     cash: shopping || formData.get("cash")==="on",
   };
+}
+
+async function latestAuthInvitationEventually(spaceId:string,email:string){
+  for(let attempt=0;attempt<4;attempt++){
+    try{
+      const invitation=await latestAuthInvitation(spaceId,email);
+      if(invitation)return invitation;
+    }catch{
+      // L'envoi Neon a déjà réussi : une lecture différée ne doit pas transformer
+      // le succès utilisateur en erreur générique. Les essais suivants rattrapent
+      // la propagation éventuelle de la table neon_auth.invitation.
+    }
+    if(attempt<3)await new Promise(resolve=>setTimeout(resolve,120*(attempt+1)));
+  }
+  return null;
+}
+
+function localInvitationIdentity(remoteId:string|null){
+  const seed=remoteId?`neon:${remoteId}`:`neon-pending:${crypto.randomUUID()}`;
+  return crypto.createHash("sha256").update(seed).digest("hex");
 }
 
 export async function createSpaceAction(formData: FormData) {
@@ -64,9 +85,9 @@ export async function inviteMemberAction(formData: FormData) {
   const { error } = await auth.organization.inviteMember({ organizationId, email, role: "member" });
   if (error) throw new Error(error.message || "Impossible d’envoyer l’invitation");
 
-  const remoteInvite = await latestAuthInvitation(spaceId, email);
-  if (!remoteInvite) throw new Error("Invitation Neon introuvable après création");
-  const tokenHash = crypto.createHash("sha256").update(`neon:${remoteInvite.id}`).digest("hex");
+  const remoteInvite = await latestAuthInvitationEventually(spaceId, email);
+  const tokenHash = localInvitationIdentity(remoteInvite?.id||null);
+  const expiresAt = remoteInvite?.expiresAt || new Date(Date.now()+7*24*60*60*1000);
 
   const [existing] = await db.select().from(s.invitations).where(and(
     eq(s.invitations.careSpaceId, spaceId),
@@ -77,7 +98,7 @@ export async function inviteMemberAction(formData: FormData) {
   let invitationId:string;
   if (existing) {
     invitationId=existing.id;
-    await db.update(s.invitations).set({ role, childIds, tokenHash, expiresAt: remoteInvite.expiresAt }).where(eq(s.invitations.id, existing.id));
+    await db.update(s.invitations).set({ role, childIds, tokenHash, expiresAt }).where(eq(s.invitations.id, existing.id));
   } else {
     const [created]=await db.insert(s.invitations).values({
       careSpaceId: spaceId,
@@ -86,13 +107,14 @@ export async function inviteMemberAction(formData: FormData) {
       tokenHash,
       childIds,
       invitedBy: session.user.id,
-      expiresAt: remoteInvite.expiresAt,
+      expiresAt,
     }).returning({id:s.invitations.id});
     invitationId=created.id;
   }
 
-  await log(db, spaceId, session.user.id, "INVITATION_SENT", "invitation", invitationId, { email, role, childIds, permissions });
+  await log(db, spaceId, session.user.id, "INVITATION_SENT", "invitation", invitationId, { email, role, childIds, permissions, authInvitationObserved:Boolean(remoteInvite) });
   revalidatePath("/app");
+  redirect(`/app?space=${encodeURIComponent(spaceId)}&section=more&area=team`);
 }
 
 export async function acceptInvitationAction() {
@@ -132,10 +154,13 @@ export async function resendInvitationAction(formData: FormData) {
   const { error } = await auth.organization.inviteMember({ organizationId, email: invite.email, role: "member", resend: true });
   if (error) throw new Error(error.message || "Impossible de renvoyer l’invitation");
 
-  const remoteInvite = await latestAuthInvitation(spaceId, invite.email);
-  if (!remoteInvite) throw new Error("Invitation Neon introuvable après renvoi");
-  const tokenHash = crypto.createHash("sha256").update(`neon:${remoteInvite.id}`).digest("hex");
-  await db.update(s.invitations).set({ tokenHash, status: "PENDING", expiresAt: remoteInvite.expiresAt }).where(eq(s.invitations.id, invite.id));
+  const remoteInvite = await latestAuthInvitationEventually(spaceId, invite.email);
+  const tokenHash = localInvitationIdentity(remoteInvite?.id||null);
+  await db.update(s.invitations).set({
+    tokenHash,
+    status: "PENDING",
+    expiresAt: remoteInvite?.expiresAt || invite.expiresAt,
+  }).where(eq(s.invitations.id, invite.id));
   revalidatePath("/app");
 }
 
