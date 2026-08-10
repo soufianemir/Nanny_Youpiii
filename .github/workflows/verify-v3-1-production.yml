@@ -1,0 +1,31 @@
+name: Verify V3.1 production
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check public V3.1 flows
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://nanny-youpiii-v3.vercel.app'
+          check() {
+            url="$1"; needle="$2"
+            html="$(curl -fsSL --max-time 25 "$url")"
+            printf '%s' "$html" | grep -Fq "$needle" || { echo "Missing '$needle' at $url" >&2; exit 1; }
+            echo "OK $url -> $needle"
+          }
+          check "$base/" 'Tout ce qui concerne vos enfants'
+          check "$base/demo?role=parent&section=config" 'Voir l’application comme'
+          check "$base/demo?role=parent&section=config" 'Voir comme Sophie'
+          check "$base/demo?role=parent&section=config" 'Voir comme Nora'
+          check "$base/demo?role=nanny&caregiver=nora&section=today" 'Bonjour Nora'
+          check "$base/demo?role=nanny&caregiver=sophie&section=today" 'Bonsoir Sophie'
+          check "$base/demo?role=nanny&caregiver=sophie&section=today" '20:45 · Coucher'
+          check "$base/demo?role=nanny&caregiver=nora&section=shopping" 'Courses &amp; caisse'
+          check "$base/demo?role=nanny&caregiver=nora&section=shopping" 'Acheté ✓'
+          check "$base/demo?role=nanny&caregiver=sophie&section=planning" '20:45 · Coucher'
