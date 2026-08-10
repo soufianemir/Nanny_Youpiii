@@ -31,8 +31,7 @@ export function normalizeMoreArea(section:string|undefined,area:string|undefined
 
 export function quickKinds(args:{parent:boolean;canProgram:boolean;canTasks:boolean;canJournal:boolean;canShopping:boolean;canAdmin:boolean}):V4QuickKind[]{
   const values:V4QuickKind[]=[];
-  if(args.parent&&args.canProgram)values.push("activity");
-  if(args.parent&&args.canTasks)values.push("task");
+  if(args.parent&&(args.canProgram||args.canTasks))values.push("activity");
   if(args.parent&&args.canJournal)values.push("instruction");
   if(args.canShopping)values.push("shopping");
   if(args.parent&&args.canAdmin)values.push("shift");
