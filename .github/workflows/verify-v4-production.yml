@@ -1,0 +1,81 @@
+name: Verify V4 production
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check public V4 flows
+        shell: bash
+        env:
+          BASE: https://nanny-youpiii-v3.vercel.app
+        run: |
+          set -euo pipefail
+
+          check() {
+            local path="$1"
+            local label="$2"
+            shift 2
+            local body
+            body="$(curl -fsSL --retry 3 --retry-delay 2 "$BASE$path")"
+            for expected in "$@"; do
+              if ! grep -Fq "$expected" <<<"$body"; then
+                echo "FAILED: $label — missing: $expected"
+                exit 1
+              fi
+            done
+            echo "OK: $label"
+          }
+
+          check "/" "landing" \
+            "Organisez simplement le quotidien de vos enfants" \
+            "Créer mon espace" \
+            "Voir la démo"
+
+          check "/demo?role=parent&section=today" "demo parent today" \
+            "Bonjour Camille" \
+            "Votre journée familiale" \
+            "Journal récent" \
+            "Aujourd’hui" \
+            "Planning" \
+            "Journal" \
+            "Plus"
+
+          check "/demo?role=nanny&caregiver=nora&section=today" "demo Nora today" \
+            "Bonjour Nora" \
+            "Votre garde" \
+            "À savoir aujourd’hui"
+
+          check "/demo?role=nanny&caregiver=sophie&section=today" "demo Sophie today" \
+            "Bonjour Sophie" \
+            "18:00" \
+            "22:30"
+
+          check "/demo?role=parent&section=planning" "demo parent planning" \
+            "Planning" \
+            "Relais" \
+            "Nora" \
+            "Sophie"
+
+          check "/demo?role=parent&section=journal" "demo parent journal" \
+            "Journal" \
+            "Passage de relais" \
+            "Tout mangé"
+
+          check "/demo?role=parent&section=more&area=shopping" "demo shopping and cash" \
+            "Courses & caisse" \
+            "Yaourts" \
+            "85,30"
+
+          check "/demo?role=parent&section=more&area=team" "demo team" \
+            "Équipe" \
+            "Voir comme" \
+            "Nora" \
+            "Sophie"
