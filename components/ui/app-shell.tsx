@@ -4,8 +4,9 @@ import { Icon, type IconName } from "./icons";
 
 export type NavigationItem={id:string;label:string;icon:IconName;href:string};
 
-export function AppHeader({spaceName,context,action,homeHref="/app"}:{spaceName:string;context?:string;action?:ReactNode;homeHref?:string}){
-  return <header className="v4-app-header"><div className="v4-app-header-inner"><Link href={homeHref} className="v4-brand" aria-label="Nanny Youpiii — Aujourd’hui"><span className="v4-logo">Y</span><span className="v4-brand-copy"><strong>Nanny Youpiii</strong><small>{context||spaceName}</small></span></Link>{action&&<div className="v4-header-action">{action}</div>}</div></header>;
+export function AppHeader({spaceName,context,action,homeHref}:{spaceName:string;context?:string;action?:ReactNode;homeHref?:string}){
+  const brand=<><span className="v4-logo">Y</span><span className="v4-brand-copy"><strong>Nanny Youpiii</strong><small>{context||spaceName}</small></span></>;
+  return <header className="v4-app-header"><div className="v4-app-header-inner">{homeHref?<Link href={homeHref} className="v4-brand" aria-label="Nanny Youpiii — Aujourd’hui">{brand}</Link>:<div className="v4-brand" aria-label="Nanny Youpiii">{brand}</div>}{action&&<div className="v4-header-action">{action}</div>}</div></header>;
 }
 
 export function BottomNavigation({items,activeId}:{items:NavigationItem[];activeId:string}){
