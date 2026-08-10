@@ -1,0 +1,55 @@
+name: Nanny Youpiii E2E
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  mobile-demo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund >/dev/null 2>&1
+      - name: Capture typecheck
+        shell: bash
+        run: |
+          set +e
+          npm run typecheck > typecheck.log 2>&1
+          echo $? > typecheck.exit
+          exit 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v5-typecheck-log
+          path: |
+            typecheck.log
+            typecheck.exit
+      - name: Gate typecheck
+        shell: bash
+        run: test "$(cat typecheck.exit)" = "0"
+      - name: Capture build
+        shell: bash
+        run: |
+          set +e
+          npm run build > build.log 2>&1
+          echo $? > build.exit
+          exit 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v5-build-log
+          path: |
+            build.log
+            build.exit
+      - name: Gate build
+        shell: bash
+        run: test "$(cat build.exit)" = "0"
+      - run: npx playwright install --with-deps chromium >/dev/null 2>&1
+      - run: npm run test:e2e

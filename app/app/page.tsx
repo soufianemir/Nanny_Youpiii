@@ -5,6 +5,7 @@ import { db } from "@/db";
 import * as s from "@/db/schema";
 import { requireUser, isAdminRole, isParentRole, hasPermission } from "@/lib/security";
 import { spacesForUser, spaceSnapshot } from "@/lib/data";
+import { caregiverAgenda } from "@/lib/caregiver-agenda";
 import { usersByIds } from "@/lib/directory";
 import { serverConfigured } from "@/lib/env";
 import { canSeeCashFromPermissions, sectionDate } from "@/lib/coherence";
@@ -21,99 +22,39 @@ import { ShoppingCash } from "@/components/app/shopping-cash";
 import { ChildrenPanel } from "@/components/app/children-panel";
 import { TeamPanel } from "@/components/app/team-panel";
 import { RulesPanel } from "@/components/app/rules-panel";
+import { MessagesPanel } from "@/components/app/messages-panel";
+import { ReportsPanel } from "@/components/app/reports-panel";
+import { SettingsPanel } from "@/components/app/settings-panel";
 import { MoreHub } from "@/components/app/more-hub";
 import { roleLabel, today } from "@/components/app/utils";
 
-export const dynamic = "force-dynamic";
-
+export const dynamic="force-dynamic";
 export default async function AppPage({searchParams}:{searchParams:Promise<Record<string,string|undefined>>}){
   if(!serverConfigured())redirect("/");
-  const session=await requireUser();
-  const params=await searchParams;
-  const spaces=await spacesForUser(session.user.id);
-  if(!spaces.length)redirect("/onboarding");
-
-  const selectedSpaceId=params.space&&spaces.some(item=>item.space.id===params.space)?params.space:spaces[0].space.id;
-  const own=spaces.find(item=>item.space.id===selectedSpaceId)!;
-  const actualMembership=own.member;
-  const parent=isParentRole(actualMembership.role);
-  const admin=isAdminRole(actualMembership.role);
-  const parentChildIds=parent?(await db.select({childId:s.memberChildren.childId}).from(s.memberChildren).where(eq(s.memberChildren.memberId,actualMembership.id))).map(item=>item.childId):[];
-  const todayIso=today(own.space.timezone);
-
-  let viewMembership=actualMembership;
-  let preview=false;
-  if(parent&&params.preview){
-    const [candidate]=await db.select().from(s.members).where(and(eq(s.members.id,params.preview),eq(s.members.careSpaceId,selectedSpaceId),eq(s.members.status,"ACTIVE"))).limit(1);
-    if(candidate&&!isParentRole(candidate.role)){
-      const targetChildIds=(await db.select({childId:s.memberChildren.childId}).from(s.memberChildren).where(eq(s.memberChildren.memberId,candidate.id))).map(item=>item.childId);
-      if(targetChildIds.some(id=>parentChildIds.includes(id))){viewMembership=candidate;preview=true;}
-    }
-  }
-
-  const canProgram=hasPermission(viewMembership,"program");
-  const canTasks=hasPermission(viewMembership,"tasks");
-  const canPlanning=canProgram||canTasks;
-  const canJournal=hasPermission(viewMembership,"journal");
-  const canShopping=hasPermission(viewMembership,"shopping");
-  const requestedCashVisibility=canSeeCashFromPermissions(canShopping,hasPermission(viewMembership,"cash"));
-  const section=normalizeSection(params.section,canPlanning,canJournal);
-  const moreArea=normalizeMoreArea(params.section,params.area);
-  const selectedDate=sectionDate(section,params.date||todayIso,todayIso);
-  const snapshot=await spaceSnapshot(selectedSpaceId,viewMembership,selectedDate,preview?actualMembership:undefined);
-
-  const rawTeam=parent?await db.select().from(s.members).where(and(eq(s.members.careSpaceId,selectedSpaceId),eq(s.members.status,"ACTIVE"))).orderBy(asc(s.members.createdAt)):[actualMembership];
-  const rawTeamLinks=parent&&rawTeam.length?await db.select().from(s.memberChildren).where(inArray(s.memberChildren.memberId,rawTeam.map(member=>member.id))):[];
-  const sharesParentChild=(memberId:string)=>memberId===actualMembership.id||rawTeamLinks.some(link=>link.memberId===memberId&&parentChildIds.includes(link.childId));
-  const fullTeam=parent&&!admin?rawTeam.filter(member=>sharesParentChild(member.id)):rawTeam;
-  const previewableMemberIds=new Set(fullTeam.filter(member=>!isParentRole(member.role)&&sharesParentChild(member.id)).map(member=>member.id));
-  const journalMemberIds=new Set<string>([...fullTeam.map(member=>member.id),...snapshot.handovers.flatMap(handover=>[handover.fromMemberId,...(handover.toMemberId?[handover.toMemberId]:[])])]);
-  const journalMembers=journalMemberIds.size?await db.select().from(s.members).where(and(eq(s.members.careSpaceId,selectedSpaceId),inArray(s.members.id,[...journalMemberIds]))):[];
-  const directory=await usersByIds([...new Set([...fullTeam,...journalMembers].map(member=>member.userId))]);
-  const memberName=(member:typeof s.members.$inferSelect)=>directory.get(member.userId)?.name||member.label||roleLabel(member.role);
-
-  const invitations=admin?await db.select().from(s.invitations).where(eq(s.invitations.careSpaceId,selectedSpaceId)).orderBy(desc(s.invitations.createdAt)):[];
-  const routines=parent&&hasPermission(actualMembership,"tasks")?await db.select().from(s.routines).where(eq(s.routines.careSpaceId,selectedSpaceId)):[];
-  const scheduleRules=parent&&hasPermission(actualMembership,"program")?await db.select().from(s.scheduleRules).where(eq(s.scheduleRules.careSpaceId,selectedSpaceId)):[];
-  const caregivers=fullTeam.filter(member=>!isParentRole(member.role));
-
-  const q=(extra:Record<string,string>)=>{
-    const query=new URLSearchParams({space:selectedSpaceId,date:selectedDate,...(preview?{preview:viewMembership.id}:{})});
-    for(const [key,value] of Object.entries(extra)){if(value)query.set(key,value);else query.delete(key);}
-    return `/app?${query}`;
-  };
-  const navItems=visiblePrimaryNav({canPlanning,canJournal}).map(item=>({id:item.id,label:item.label,icon:item.icon,href:q({section:item.id,date:sectionDate(item.id,selectedDate,todayIso)})}));
-
-  const canChildren=parent&&!preview&&hasPermission(actualMembership,"children");
-  const canManageRules=parent&&!preview&&(hasPermission(actualMembership,"journal")||hasPermission(actualMembership,"tasks"));
-  const canManageCash=parent&&!preview&&hasPermission(actualMembership,"cash")&&Boolean(snapshot.cash);
-  const canSeeCash=requestedCashVisibility&&Boolean(snapshot.cash);
-  const canActProgram=!preview&&hasPermission(actualMembership,"program");
-  const canActTasks=!preview&&hasPermission(actualMembership,"tasks");
-  const canAddShopping=!preview&&hasPermission(actualMembership,"shopping");
-  const canPurchase=!preview&&!parent&&hasPermission(actualMembership,"shopping");
-  const canCreateActivity=!preview&&hasPermission(actualMembership,"program");
-  const currentArea=section==="more"?moreArea:"";
-  const closeActivityHref=q({section,area:currentArea,compose:""});
-  const quickOptions:QuickAddOption[]=canCreateActivity?[{label:"Ajouter une activité",description:"Repas, sieste, bain…",icon:"activity",href:q({section,area:currentArea,compose:"activity"})}]:[];
-
-  const editId=params.compose?.startsWith("activity-edit-")?params.compose.slice("activity-edit-".length):undefined;
-  const editActivity=canCreateActivity&&editId?snapshot.program.find(item=>item.id===editId):undefined;
-  const editChildIds=editActivity?(await db.select({id:s.programChildren.childId}).from(s.programChildren).where(eq(s.programChildren.programItemId,editActivity.id))).map(item=>item.id):[];
-  const editMemberIds=editActivity?(await db.select({id:s.programAssignees.memberId}).from(s.programAssignees).where(eq(s.programAssignees.programItemId,editActivity.id))).map(item=>item.id):[];
-  const showActivity=canCreateActivity&&(params.compose==="activity"||params.compose==="item"||Boolean(editActivity));
-
-  return <AppShell header={<AppHeader spaceName={own.space.name} context={preview?`Vue ${memberName(viewMembership)}`:own.space.name}/>} navigation={<BottomNavigation items={navItems} activeId={section}/>} floatingAction={<QuickAdd options={quickOptions}/> }>
-    <AutoRefresh/>
-    {preview&&<div className="v4-preview"><span><Icon name="eye" size={17}/> Vue de <strong>{memberName(viewMembership)}</strong>{snapshot.previewRestricted?" · filtrée à vos enfants":""}</span><Link className="v4-text-action" href={`/app?space=${selectedSpaceId}&section=today&date=${todayIso}`}>Quitter</Link></div>}
-    {section==="today"&&<Today spaceId={selectedSpaceId} selectedDate={selectedDate} snapshot={snapshot} memberName={memberName} actualMembership={actualMembership} viewMembership={viewMembership} parent={parent} preview={preview} q={q} fullTeam={fullTeam} userFirstName={session.user.name?.split(" ")[0]||""} canActProgram={canActProgram} canActTasks={canActTasks} timezone={own.space.timezone}/>} 
-    {section==="planning"&&<Planning spaceId={selectedSpaceId} selectedDate={selectedDate} snapshot={snapshot} caregivers={caregivers} memberName={memberName} canActProgram={canActProgram} canActTasks={canActTasks} q={q} timezone={own.space.timezone}/>} 
+  const session=await requireUser();const params=await searchParams;const spaces=await spacesForUser(session.user.id);if(!spaces.length)redirect("/onboarding");
+  const selectedSpaceId=params.space&&spaces.some(item=>item.space.id===params.space)?params.space:spaces[0].space.id;const own=spaces.find(item=>item.space.id===selectedSpaceId)!;const actualMembership=own.member;const parent=isParentRole(actualMembership.role);const admin=isAdminRole(actualMembership.role);const parentChildIds=parent?(await db.select({childId:s.memberChildren.childId}).from(s.memberChildren).where(eq(s.memberChildren.memberId,actualMembership.id))).map(item=>item.childId):[];const todayIso=today(own.space.timezone);
+  let viewMembership=actualMembership;let preview=false;
+  if(parent&&params.preview){const [candidate]=await db.select().from(s.members).where(and(eq(s.members.id,params.preview),eq(s.members.careSpaceId,selectedSpaceId),eq(s.members.status,"ACTIVE"))).limit(1);if(candidate&&!isParentRole(candidate.role)){const targetChildIds=(await db.select({childId:s.memberChildren.childId}).from(s.memberChildren).where(eq(s.memberChildren.memberId,candidate.id))).map(item=>item.childId);if(targetChildIds.some(id=>parentChildIds.includes(id))){viewMembership=candidate;preview=true;}}}
+  const canProgram=hasPermission(viewMembership,"program"),canTasks=hasPermission(viewMembership,"tasks"),canPlanning=canProgram||canTasks,canJournal=hasPermission(viewMembership,"journal"),canShopping=hasPermission(viewMembership,"shopping");const requestedCashVisibility=canSeeCashFromPermissions(canShopping,hasPermission(viewMembership,"cash"));const section=normalizeSection(params.section,canPlanning,canJournal);const moreArea=normalizeMoreArea(params.section,params.area);const selectedDate=sectionDate(section,params.date||todayIso,todayIso);const snapshot=await spaceSnapshot(selectedSpaceId,viewMembership,selectedDate,preview?actualMembership:undefined);
+  const rawTeam=parent?await db.select().from(s.members).where(and(eq(s.members.careSpaceId,selectedSpaceId),eq(s.members.status,"ACTIVE"))).orderBy(asc(s.members.createdAt)):[actualMembership];const rawTeamLinks=parent&&rawTeam.length?await db.select().from(s.memberChildren).where(inArray(s.memberChildren.memberId,rawTeam.map(member=>member.id))):[];const sharesParentChild=(memberId:string)=>memberId===actualMembership.id||rawTeamLinks.some(link=>link.memberId===memberId&&parentChildIds.includes(link.childId));const fullTeam=parent&&!admin?rawTeam.filter(member=>sharesParentChild(member.id)):rawTeam;const previewableMemberIds=new Set(fullTeam.filter(member=>!isParentRole(member.role)&&sharesParentChild(member.id)).map(member=>member.id));
+  const messages=!preview&&section==="more"&&moreArea==="messages"?await db.select().from(s.spaceMessages).where(eq(s.spaceMessages.careSpaceId,selectedSpaceId)).orderBy(desc(s.spaceMessages.createdAt)).limit(80):[];const messageTeam=messages.length?await db.select().from(s.members).where(and(eq(s.members.careSpaceId,selectedSpaceId),eq(s.members.status,"ACTIVE"))):[];
+  const completedMemberIds=snapshot.program.flatMap(item=>item.completedByMemberId?[item.completedByMemberId]:[]);const journalMemberIds=new Set<string>([...fullTeam.map(member=>member.id),...completedMemberIds,...snapshot.handovers.flatMap(handover=>[handover.fromMemberId,...(handover.toMemberId?[handover.toMemberId]:[])]),...messageTeam.map(member=>member.id)]);const journalMembers=journalMemberIds.size?await db.select().from(s.members).where(and(eq(s.members.careSpaceId,selectedSpaceId),inArray(s.members.id,[...journalMemberIds]))):[];const directory=await usersByIds([...new Set([...fullTeam,...journalMembers,...messageTeam].map(member=>member.userId))]);const memberName=(member:typeof s.members.$inferSelect)=>directory.get(member.userId)?.name||member.label||roleLabel(member.role);
+  const invitations=admin?await db.select().from(s.invitations).where(eq(s.invitations.careSpaceId,selectedSpaceId)).orderBy(desc(s.invitations.createdAt)):[];const routines=parent&&hasPermission(actualMembership,"tasks")?await db.select().from(s.routines).where(eq(s.routines.careSpaceId,selectedSpaceId)):[];const scheduleRules=parent&&hasPermission(actualMembership,"program")?await db.select().from(s.scheduleRules).where(eq(s.scheduleRules.careSpaceId,selectedSpaceId)):[];const caregivers=fullTeam.filter(member=>!isParentRole(member.role));const globalAgenda=!parent&&!preview?await caregiverAgenda(session.user.id,selectedDate):[];
+  const q=(extra:Record<string,string>)=>{const query=new URLSearchParams({space:selectedSpaceId,date:selectedDate,...(preview?{preview:viewMembership.id}:{})});for(const [key,value] of Object.entries(extra)){if(value)query.set(key,value);else query.delete(key);}return `/app?${query}`;};const navItems=visiblePrimaryNav({canPlanning,canJournal}).map(item=>({id:item.id,label:item.label,icon:item.icon,href:q({section:item.id,date:sectionDate(item.id,selectedDate,todayIso)})}));const spaceOptions=spaces.map(item=>({id:item.space.id,name:item.space.name,active:item.space.id===selectedSpaceId,roleLabel:roleLabel(item.member.role),href:`/app?space=${item.space.id}&section=today`}));
+  const canChildren=parent&&!preview&&hasPermission(actualMembership,"children"),canManageRules=parent&&!preview&&(hasPermission(actualMembership,"journal")||hasPermission(actualMembership,"tasks")),canManageCash=parent&&!preview&&hasPermission(actualMembership,"cash")&&Boolean(snapshot.cash),canSeeCash=requestedCashVisibility&&Boolean(snapshot.cash),canActProgram=!preview&&hasPermission(actualMembership,"program"),canActTasks=!preview&&hasPermission(actualMembership,"tasks"),canAddShopping=!preview&&hasPermission(actualMembership,"shopping"),canPurchase=!preview&&!parent&&hasPermission(actualMembership,"shopping"),canCreateActivity=!preview&&hasPermission(actualMembership,"program");const currentArea=section==="more"?moreArea:"";const closeActivityHref=q({section,area:currentArea,compose:""});const quickOptions:QuickAddOption[]=canCreateActivity?[{label:"Ajouter une activité",description:"Repas, sieste, bain…",icon:"activity",href:q({section,area:currentArea,compose:"activity"})}]:[];
+  const editId=params.compose?.startsWith("activity-edit-")?params.compose.slice("activity-edit-".length):undefined;const editActivity=canCreateActivity&&editId?snapshot.program.find(item=>item.id===editId):undefined;const editChildIds=editActivity?(await db.select({id:s.programChildren.childId}).from(s.programChildren).where(eq(s.programChildren.programItemId,editActivity.id))).map(item=>item.id):[];const editMemberIds=editActivity?(await db.select({id:s.programAssignees.memberId}).from(s.programAssignees).where(eq(s.programAssignees.programItemId,editActivity.id))).map(item=>item.id):[];const showActivity=canCreateActivity&&(params.compose==="activity"||params.compose==="item"||Boolean(editActivity));const reportMonth=params.month&&/^\d{4}-\d{2}$/.test(params.month)?params.month:todayIso.slice(0,7);
+  return <AppShell header={<AppHeader spaceName={own.space.name} context={preview?`Vue ${memberName(viewMembership)}`:own.space.name} spaces={spaceOptions}/>} navigation={<BottomNavigation items={navItems} activeId={section}/>} floatingAction={<QuickAdd options={quickOptions}/> }><AutoRefresh/>{preview&&<div className="v4-preview"><span><Icon name="eye" size={17}/> Vue de <strong>{memberName(viewMembership)}</strong>{snapshot.previewRestricted?" · filtrée à vos enfants":""}</span><Link className="v4-text-action" href={`/app?space=${selectedSpaceId}&section=today&date=${todayIso}`}>Quitter</Link></div>}
+    {section==="today"&&<Today spaceId={selectedSpaceId} selectedDate={selectedDate} snapshot={snapshot} memberName={memberName} actualMembership={actualMembership} viewMembership={viewMembership} parent={parent} preview={preview} q={q} fullTeam={fullTeam} userFirstName={session.user.name?.split(" ")[0]||""} canActProgram={canActProgram} canActTasks={canActTasks} timezone={own.space.timezone} globalAgenda={globalAgenda}/>} 
+    {section==="planning"&&<Planning spaceId={selectedSpaceId} selectedDate={selectedDate} snapshot={snapshot} caregivers={caregivers} children={snapshot.children} routines={routines} memberName={memberName} canActProgram={canActProgram} canActTasks={canActTasks} q={q} timezone={own.space.timezone}/>} 
     {section==="journal"&&<Journal selectedDate={selectedDate} snapshot={snapshot} team={journalMembers} memberName={memberName} canEditActivities={canCreateActivity} q={q}/>} 
-    {section==="more"&&moreArea==="home"&&<MoreHub q={q} parent={parent&&!preview} canChildren={canChildren} canTeam={parent&&!preview} canShopping={canShopping} canCash={canSeeCash} canRules={canManageRules} showSession/>} 
+    {section==="more"&&moreArea==="home"&&<MoreHub q={q} parent={parent&&!preview} canChildren={canChildren} canTeam={parent&&!preview} canShopping={canShopping} canCash={canSeeCash} canRules={canManageRules} showSession personalTools={!preview}/>} 
     {section==="more"&&moreArea==="children"&&canChildren&&<ChildrenPanel spaceId={selectedSpaceId} children={snapshot.children} canEdit={canChildren} q={q} compose={params.compose}/>} 
     {section==="more"&&moreArea==="team"&&parent&&!preview&&<TeamPanel spaceId={selectedSpaceId} team={fullTeam} children={snapshot.children} invitations={invitations} memberName={memberName} selectedDate={selectedDate} q={q} scheduleRules={scheduleRules} memberChildLinks={rawTeamLinks} canAdmin={admin} previewableMemberIds={previewableMemberIds} compose={params.compose}/>} 
     {section==="more"&&(moreArea==="shopping"||moreArea==="cash")&&(canShopping||canSeeCash)&&<ShoppingCash spaceId={selectedSpaceId} snapshot={snapshot} team={fullTeam} children={snapshot.children} memberName={memberName} viewMembership={viewMembership} parent={parent&&!preview} canAdd={canAddShopping} canPurchase={canPurchase} canSeeCash={canSeeCash} canManageCash={canManageCash} q={q} compose={params.compose}/>} 
     {section==="more"&&moreArea==="rules"&&parent&&!preview&&<RulesPanel spaceId={selectedSpaceId} snapshot={snapshot} team={fullTeam} routines={routines} canManage={canManageRules} q={q} compose={params.compose}/>} 
+    {section==="more"&&moreArea==="messages"&&!preview&&<MessagesPanel spaceId={selectedSpaceId} messages={messages} team={messageTeam} currentMember={actualMembership} memberName={memberName}/>} 
+    {section==="more"&&moreArea==="reports"&&!preview&&<ReportsPanel spaceId={selectedSpaceId} currentMember={actualMembership} team={fullTeam} memberName={memberName} month={reportMonth}/>} 
+    {section==="more"&&moreArea==="settings"&&!preview&&<SettingsPanel userId={session.user.id}/>} 
     {showActivity&&<ActivitySheet spaceId={selectedSpaceId} selectedDate={selectedDate} children={snapshot.children} caregivers={caregivers} memberName={memberName} parent={parent} closeHref={closeActivityHref} item={editActivity} childIds={editChildIds} memberIds={editMemberIds}/>} 
   </AppShell>;
 }

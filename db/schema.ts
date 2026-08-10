@@ -35,6 +35,10 @@ export const children = pgTable("children", {
   firstName: text("first_name").notNull(),
   birthDate: date("birth_date"),
   notes: text("notes"),
+  school: text("school"),
+  allergies: text("allergies"),
+  habits: text("habits"),
+  emergencyContacts: text("emergency_contacts"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, t => [index("children_space_idx").on(t.careSpaceId)]);
 
@@ -94,6 +98,8 @@ export const programItems = pgTable("program_items", {
   status: programStatus("status").notNull().default("PLANNED"),
   note: text("note"),
   createdBy: text("created_by").notNull(),
+  completedByMemberId: uuid("completed_by_member_id").references(() => members.id, { onDelete: "set null" }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
 }, t => [index("program_space_date_idx").on(t.careSpaceId, t.programDate)]);
 
 export const programChildren = pgTable("program_children", {
@@ -256,6 +262,41 @@ export const notifications = pgTable("notifications", {
   readAt: timestamp("read_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, t => [index("notifications_user_created_idx").on(t.userId, t.createdAt)]);
+
+export const notificationPreferences = pgTable("notification_preferences", {
+  userId: text("user_id").primaryKey(),
+  activities: boolean("activities").notNull().default(true),
+  messages: boolean("messages").notNull().default(true),
+  handovers: boolean("handovers").notNull().default(true),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const pushSubscriptions = pgTable("push_subscriptions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: text("user_id").notNull(),
+  endpoint: text("endpoint").notNull().unique(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, t => [index("push_subscriptions_user_idx").on(t.userId)]);
+
+export const spaceMessages = pgTable("space_messages", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  careSpaceId: uuid("care_space_id").notNull().references(() => careSpaces.id, { onDelete: "cascade" }),
+  authorMemberId: uuid("author_member_id").notNull().references(() => members.id, { onDelete: "cascade" }),
+  text: text("text").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, t => [index("space_messages_space_created_idx").on(t.careSpaceId, t.createdAt)]);
+
+export const productEvents = pgTable("product_events", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: text("user_id"),
+  careSpaceId: uuid("care_space_id").references(() => careSpaces.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, t => [index("product_events_created_idx").on(t.createdAt), index("product_events_space_idx").on(t.careSpaceId)]);
 
 export const dayTemplates = pgTable("day_templates", {
   id: uuid("id").defaultRandom().primaryKey(),
