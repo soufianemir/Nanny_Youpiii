@@ -26,8 +26,7 @@ export default async function DemoPage({searchParams}:{searchParams:Promise<Reco
   const caregiver:Caregiver=previewCaregiver||(params.caregiver==="sophie"?"sophie":"nora");
   const viewMembership=role==="parent"?data.parent:caregiver==="sophie"?data.sophie:data.nora;
   const snapshot=role==="parent"?data.parentSnapshot:caregiver==="sophie"?data.sophieSnapshot:data.noraSnapshot;
-  const canPlanning=true;const canJournal=true;
-  const section=normalizeSection(params.section,canPlanning,canJournal);
+  const section=normalizeSection(params.section,true,true);
   const area=normalizeMoreArea(params.section,params.area);
   const selectedDate=sectionDate(section,params.date||data.date,data.date);
   const memberName=(member:Member)=>data.names.get(member.id)||member.label||member.role;
@@ -42,11 +41,10 @@ export default async function DemoPage({searchParams}:{searchParams:Promise<Reco
   };
   const nav=PRIMARY_NAV.map(item=>({id:item.id,label:item.label,icon:item.icon,href:q({section:item.id,date:sectionDate(item.id,selectedDate,data.date)})}));
   const roleSwitch=<div className="v4-demo-switch"><Link className={role==="parent"?"is-active":""} href="/demo?role=parent&section=today">Parent</Link><Link className={role==="nanny"&&caregiver==="nora"?"is-active":""} href="/demo?role=nanny&caregiver=nora&section=today">Nora</Link><Link className={role==="nanny"&&caregiver==="sophie"?"is-active":""} href="/demo?role=nanny&caregiver=sophie&section=today">Sophie</Link></div>;
-  const header=<AppHeader spaceName={data.space.name} context={`Démo · ${role==="parent"?"Parent":memberName(viewMembership)}`} action={roleSwitch}/>;
 
-  return <AppShell header={header} navigation={<BottomNavigation items={nav} activeId={section}/> }>
+  return <AppShell header={<AppHeader spaceName={data.space.name} context={`Démo · ${role==="parent"?"Parent":memberName(viewMembership)}`} action={roleSwitch}/>} navigation={<BottomNavigation items={nav} activeId={section}/> }>
     <div className="v4-demo-banner"><span><Icon name="eye" size={16}/> Mode démo · aucune donnée réelle</span><Link href="/auth/sign-up" className="v4-text-action">Créer mon espace</Link></div>
-    {section==="today"&&<Today spaceId={data.space.id} selectedDate={data.date} snapshot={snapshot} memberName={memberName} actualMembership={viewMembership} viewMembership={viewMembership} parent={role==="parent"} preview={true} q={q} fullTeam={data.team} userFirstName={role==="parent"?"Camille":""} canActProgram={false} canActTasks={false} timezone={data.space.timezone}/>} 
+    {section==="today"&&<Today spaceId={data.space.id} selectedDate={data.date} snapshot={snapshot} memberName={memberName} actualMembership={viewMembership} viewMembership={viewMembership} parent={role==="parent"} preview={false} readOnly q={q} fullTeam={data.team} userFirstName={role==="parent"?"Camille":""} canActProgram={false} canActTasks={false} timezone={data.space.timezone}/>} 
     {section==="planning"&&<Planning spaceId={data.space.id} selectedDate={data.date} snapshot={snapshot} caregivers={role==="parent"?[data.nora,data.sophie]:[viewMembership]} children={snapshot.children} routines={data.routines} memberName={memberName} canEditProgram={false} canEditTasks={false} canActProgram={false} canActTasks={false} q={q} timezone={data.space.timezone}/>} 
     {section==="journal"&&<Journal spaceId={data.space.id} selectedDate={data.date} snapshot={snapshot} team={data.team} memberName={memberName} canAdd={false} q={q}/>} 
     {section==="more"&&area==="home"&&<MoreHub q={q} parent={role==="parent"} canChildren={role==="parent"} canTeam={role==="parent"} canShopping={role==="parent"||caregiver==="nora"} canCash={role==="parent"||caregiver==="nora"} canRules={role==="parent"}/>} 
