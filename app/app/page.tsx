@@ -29,6 +29,7 @@ export default async function AppPage({searchParams}:{searchParams:Promise<Recor
   const actualMembership=own.member;
   const parent=isParentRole(actualMembership.role);
   const admin=isAdminRole(actualMembership.role);
+  const parentChildIds=parent?(await db.select({childId:s.memberChildren.childId}).from(s.memberChildren).where(eq(s.memberChildren.memberId,actualMembership.id))).map(x=>x.childId):[];
   const requestedSection=params.section||"today";
   const normalizedSection=requestedSection==="program"?"planning":requestedSection==="cash"?"shopping":["children","team","more"].includes(requestedSection)?"config":requestedSection;
   const todayIso=today(own.space.timezone);
@@ -36,11 +37,14 @@ export default async function AppPage({searchParams}:{searchParams:Promise<Recor
   let preview=false;
   if(parent&&params.preview){
     const [m]=await db.select().from(s.members).where(and(eq(s.members.id,params.preview),eq(s.members.careSpaceId,selectedSpaceId),eq(s.members.status,"ACTIVE"))).limit(1);
-    if(m&&!isParentRole(m.role)){viewMembership=m;preview=true;}
+    if(m&&!isParentRole(m.role)){
+      const targetChildIds=(await db.select({childId:s.memberChildren.childId}).from(s.memberChildren).where(eq(s.memberChildren.memberId,m.id))).map(x=>x.childId);
+      if(targetChildIds.some(id=>parentChildIds.includes(id))){viewMembership=m;preview=true;}
+    }
   }
   const canPlanning=hasPermission(viewMembership,"program")||hasPermission(viewMembership,"tasks");
   const canShopping=hasPermission(viewMembership,"shopping")||hasPermission(viewMembership,"cash");
-  const canSeeCash=canSeeCashFromPermissions(hasPermission(viewMembership,"shopping"),hasPermission(viewMembership,"cash"));
+  const requestedCashVisibility=canSeeCashFromPermissions(hasPermission(viewMembership,"shopping"),hasPermission(viewMembership,"cash"));
   const canJournal=hasPermission(viewMembership,"journal");
   const canChildren=hasPermission(actualMembership,"children");
   const canManageInstructions=parent&&!preview&&hasPermission(actualMembership,"journal");
@@ -51,15 +55,19 @@ export default async function AppPage({searchParams}:{searchParams:Promise<Recor
     :[["today","Aujourd’hui"],...(canPlanning?[["planning","Planning"]]:[]),...(canShopping?[["shopping","Courses & caisse"]]:[])];
   const section=nav.some(([id])=>id===normalizedSection)?normalizedSection:"today";
   const selectedDate=sectionDate(section,params.date||todayIso,todayIso);
-  const snapshot=await spaceSnapshot(selectedSpaceId,viewMembership,selectedDate);
-  const fullTeam=parent?await db.select().from(s.members).where(and(eq(s.members.careSpaceId,selectedSpaceId),eq(s.members.status,"ACTIVE"))).orderBy(asc(s.members.createdAt)):[actualMembership];
+  const snapshot=await spaceSnapshot(selectedSpaceId,viewMembership,selectedDate,preview?actualMembership:undefined);
+  const rawTeam=parent?await db.select().from(s.members).where(and(eq(s.members.careSpaceId,selectedSpaceId),eq(s.members.status,"ACTIVE"))).orderBy(asc(s.members.createdAt)):[actualMembership];
+  const rawTeamLinks=parent&&rawTeam.length?await db.select().from(s.memberChildren).where(inArray(s.memberChildren.memberId,rawTeam.map(m=>m.id))):[];
+  const sharesParentChild=(memberId:string)=>memberId===actualMembership.id||rawTeamLinks.some(link=>link.memberId===memberId&&parentChildIds.includes(link.childId));
+  const fullTeam=parent&&!admin?rawTeam.filter(m=>sharesParentChild(m.id)):rawTeam;
+  const previewableMemberIds=new Set(fullTeam.filter(m=>!isParentRole(m.role)&&sharesParentChild(m.id)).map(m=>m.id));
   const directory=await usersByIds(fullTeam.map(m=>m.userId));
   const memberName=(m:typeof s.members.$inferSelect)=>directory.get(m.userId)?.name||m.label||roleLabel(m.role);
   const invitations=admin?await db.select().from(s.invitations).where(eq(s.invitations.careSpaceId,selectedSpaceId)).orderBy(desc(s.invitations.createdAt)):[];
   const routines=parent&&hasPermission(actualMembership,"tasks")?await db.select().from(s.routines).where(eq(s.routines.careSpaceId,selectedSpaceId)):[];
   const scheduleRules=parent&&hasPermission(actualMembership,"program")?await db.select().from(s.scheduleRules).where(eq(s.scheduleRules.careSpaceId,selectedSpaceId)):[];
   const caregiverMembers=fullTeam.filter(m=>!isParentRole(m.role));
-  const memberChildLinks=admin&&fullTeam.length?await db.select().from(s.memberChildren).where(inArray(s.memberChildren.memberId,fullTeam.map(m=>m.id))):[];
+  const memberChildLinks=admin&&fullTeam.length?rawTeamLinks:[];
   const q=(extra:Record<string,string>)=>{const p=new URLSearchParams({space:selectedSpaceId,date:selectedDate,...(preview?{preview:viewMembership.id}:{}),...extra});return `/app?${p}`};
   const navHref=(id:string)=>q({section:id,date:sectionDate(id,selectedDate,todayIso)});
   const canEditProgram=parent&&!preview&&hasPermission(actualMembership,"program");
@@ -68,15 +76,16 @@ export default async function AppPage({searchParams}:{searchParams:Promise<Recor
   const canActTasks=!preview&&hasPermission(actualMembership,"tasks");
   const canAddShopping=!preview&&hasPermission(actualMembership,"shopping");
   const canPurchase=!preview&&!parent&&hasPermission(actualMembership,"shopping");
+  const canSeeCash=requestedCashVisibility&&Boolean(snapshot.cash);
   const canParentCash=parent&&!preview&&hasPermission(actualMembership,"cash");
 
   return <div className="shell"><AutoRefresh/><header className="top"><div className="topin"><div className="brand"><div className="logo">Y!</div><div><div>Nanny Youpiii</div><small className="muted">{own.space.name}</small></div></div><SignOutButton/></div></header>
     <main className="main">
-      {preview&&<div className="preview row between wrap"><span>👀 Vous voyez exactement l’interface de <b>{memberName(viewMembership)}</b>. Aucune action n’est exécutée à sa place.</span><Link className="btn soft" href={`/app?space=${selectedSpaceId}&date=${todayIso}&section=today`}>Quitter la prévisualisation</Link></div>}
+      {preview&&<div className="preview row between wrap"><span>👀 Vue de <b>{memberName(viewMembership)}</b>{snapshot.previewRestricted?" filtrée aux enfants auxquels vous avez accès":""}. Aucune action n’est exécutée à sa place.</span><Link className="btn soft" href={`/app?space=${selectedSpaceId}&date=${todayIso}&section=today`}>Quitter la prévisualisation</Link></div>}
       {section==="today"&&<><Today spaceId={selectedSpaceId} selectedDate={selectedDate} snapshot={snapshot} memberName={memberName} actualMembership={actualMembership} viewMembership={viewMembership} parent={parent} preview={preview} q={q} fullTeam={fullTeam} userFirstName={session.user.name?.split(" ")[0]||""}/>{(!parent||preview)&&<More spaceId={selectedSpaceId} snapshot={snapshot} team={fullTeam} children={snapshot.children} memberName={memberName} parent={false} canAct={canJournal&&!preview&&!parent} routines={[]} selectedDate={selectedDate}/>}</>}
       {section==="planning"&&<Program spaceId={selectedSpaceId} selectedDate={selectedDate} snapshot={snapshot} caregivers={caregiverMembers} children={snapshot.children} routines={routines} memberName={memberName} canEditProgram={canEditProgram} canEditTasks={canEditTasks} canActProgram={canActProgram} canActTasks={canActTasks} q={q} timezone={own.space.timezone}/>} 
       {section==="shopping"&&<div className="stack"><Shopping spaceId={selectedSpaceId} snapshot={snapshot} canAdd={canAddShopping} canPurchase={canPurchase} children={snapshot.children} team={fullTeam} memberName={memberName} viewMembership={viewMembership} canSeeCash={canSeeCash}/>{canParentCash&&<Cash spaceId={selectedSpaceId} snapshot={snapshot} team={fullTeam} memberName={memberName} parent={true} viewMembership={viewMembership} embedded/>}</div>} 
-      {section==="config"&&parent&&!preview&&<div className="stack">{spaces.length>1&&<section className="card"><div className="sectiontitle">Espaces de garde</div><div className="tabs" style={{marginTop:10}}>{spaces.map(x=><Link key={x.space.id} className={x.space.id===selectedSpaceId?"active":""} href={`/app?space=${x.space.id}&section=config`}>{x.space.name}</Link>)}</div></section>}{canChildren&&<Children spaceId={selectedSpaceId} children={snapshot.children} canEdit/>}<Team spaceId={selectedSpaceId} team={fullTeam} children={snapshot.children} invitations={invitations} memberName={memberName} selectedDate={selectedDate} q={q} scheduleRules={scheduleRules} memberChildLinks={memberChildLinks} canAdmin={admin}/><More spaceId={selectedSpaceId} snapshot={snapshot} team={fullTeam} children={snapshot.children} memberName={memberName} parent={parent} canAct={false} routines={routines} selectedDate={selectedDate} canManageInstructions={canManageInstructions} canManageRoutines={canManageRoutines}/></div>} 
+      {section==="config"&&parent&&!preview&&<div className="stack">{spaces.length>1&&<section className="card"><div className="sectiontitle">Espaces de garde</div><div className="tabs" style={{marginTop:10}}>{spaces.map(x=><Link key={x.space.id} className={x.space.id===selectedSpaceId?"active":""} href={`/app?space=${x.space.id}&section=config`}>{x.space.name}</Link>)}</div></section>}{canChildren&&<Children spaceId={selectedSpaceId} children={snapshot.children} canEdit/>}<Team spaceId={selectedSpaceId} team={fullTeam} children={snapshot.children} invitations={invitations} memberName={memberName} selectedDate={selectedDate} q={q} scheduleRules={scheduleRules} memberChildLinks={memberChildLinks} canAdmin={admin} previewableMemberIds={previewableMemberIds}/><More spaceId={selectedSpaceId} snapshot={snapshot} team={fullTeam} children={snapshot.children} memberName={memberName} parent={parent} canAct={false} routines={routines} selectedDate={selectedDate} canManageInstructions={canManageInstructions} canManageRoutines={canManageRoutines}/></div>} 
     </main>
     <nav className="nav">{nav.map(([id,label])=><Link key={id} className={section===id?"active":""} href={navHref(id)}>{label}</Link>)}</nav>
   </div>;
