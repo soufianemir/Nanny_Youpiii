@@ -1,5 +1,6 @@
 import "./globals.css";
 import "./v4-components.css";
+import "./activity-flow.css";
 import "@neondatabase/auth-ui/css";
 import type { Metadata, Viewport } from "next";
 import { NeonAuthProvider } from "@/components/neon-auth-provider";
