@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { isEmailInPlatformAdminList, isPlatformAdminIdentity, parsePlatformAdminEmails } from "../lib/platform-admin-policy";
 
+// Back-office platform: access must stay fail-closed unless the identity is explicitly trusted.
 test("la liste super-admin est normalisée et ignore les entrées vides", () => {
   assert.deepEqual([...parsePlatformAdminEmails(" Admin@Example.com, second@example.com , ")], ["admin@example.com", "second@example.com"]);
 });
