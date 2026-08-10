@@ -77,7 +77,7 @@ export default async function AppPage({searchParams}:{searchParams:Promise<Recor
   const canAddShopping=!preview&&hasPermission(actualMembership,"shopping");
   const canPurchase=!preview&&!parent&&hasPermission(actualMembership,"shopping");
   const canSeeCash=requestedCashVisibility&&Boolean(snapshot.cash);
-  const canParentCash=parent&&!preview&&hasPermission(actualMembership,"cash");
+  const canParentCash=parent&&!preview&&hasPermission(actualMembership,"cash")&&Boolean(snapshot.cash);
 
   return <div className="shell"><AutoRefresh/><header className="top"><div className="topin"><div className="brand"><div className="logo">Y!</div><div><div>Nanny Youpiii</div><small className="muted">{own.space.name}</small></div></div><SignOutButton/></div></header>
     <main className="main">
