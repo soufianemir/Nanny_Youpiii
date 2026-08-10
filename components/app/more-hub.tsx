@@ -6,7 +6,7 @@ import { SignOutButton } from "@/components/auth-forms";
 type Query=(extra:Record<string,string>)=>string;
 type MenuItem={area:string;title:string;description:string;icon:IconName;visible:boolean};
 
-export function MoreHub({q,parent,canChildren,canTeam,canShopping,canCash,canRules,showSession=true}:{q:Query;parent:boolean;canChildren:boolean;canTeam:boolean;canShopping:boolean;canCash:boolean;canRules:boolean;showSession?:boolean}){
+export function MoreHub({q,parent,canChildren,canTeam,canShopping,canCash,canRules,showSession=false}:{q:Query;parent:boolean;canChildren:boolean;canTeam:boolean;canShopping:boolean;canCash:boolean;canRules:boolean;showSession?:boolean}){
   const allItems:MenuItem[]=[
     {area:"children",title:"Enfants",description:"Profils et informations utiles",icon:"child",visible:parent&&canChildren},
     {area:"team",title:"Équipe",description:"Intervenants, horaires et accès",icon:"people",visible:parent&&canTeam},
