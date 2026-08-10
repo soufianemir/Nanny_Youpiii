@@ -9,6 +9,7 @@ const SESSION_SECONDS = 8 * 60 * 60;
 export type PlatformAdminPrincipal = {
   username: string;
   actorUserId: string;
+  user: { id: string; email: string; name: string };
 };
 
 function adminUsername() {
@@ -38,6 +39,11 @@ function tokenFor(username: string, expiresAt: number) {
   return `${payload}.${sign(payload)}`;
 }
 
+function principal(username: string): PlatformAdminPrincipal {
+  const actorUserId = `platform-admin:${username}`;
+  return { username, actorUserId, user: { id: actorUserId, email: username, name: username } };
+}
+
 function principalFromToken(value: string | undefined): PlatformAdminPrincipal | null {
   if (!value) return null;
   const [payload, signature] = value.split(".");
@@ -46,7 +52,7 @@ function principalFromToken(value: string | undefined): PlatformAdminPrincipal |
     const decoded = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { username?: string; expiresAt?: number };
     if (!decoded.username || !decoded.expiresAt || decoded.expiresAt < Date.now()) return null;
     if (!safeEqual(decoded.username, adminUsername())) return null;
-    return { username: decoded.username, actorUserId: `platform-admin:${decoded.username}` };
+    return principal(decoded.username);
   } catch {
     return null;
   }
@@ -94,7 +100,7 @@ export async function currentPlatformAdmin() {
 }
 
 export async function requirePlatformAdmin() {
-  const principal = await currentPlatformAdmin();
-  if (!principal) redirect("/admin/login");
-  return principal;
+  const current = await currentPlatformAdmin();
+  if (!current) redirect("/admin/login");
+  return current;
 }
