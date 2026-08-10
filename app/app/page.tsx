@@ -43,7 +43,9 @@ export default async function AppPage({searchParams}:{searchParams:Promise<Recor
   const canSeeCash=canSeeCashFromPermissions(hasPermission(viewMembership,"shopping"),hasPermission(viewMembership,"cash"));
   const canJournal=hasPermission(viewMembership,"journal");
   const canChildren=hasPermission(actualMembership,"children");
-  const canConfig=parent&&!preview&&(admin||canChildren||hasPermission(actualMembership,"journal")||hasPermission(actualMembership,"tasks")||hasPermission(actualMembership,"program"));
+  const canManageInstructions=parent&&!preview&&hasPermission(actualMembership,"journal");
+  const canManageRoutines=parent&&!preview&&hasPermission(actualMembership,"tasks");
+  const canConfig=parent&&!preview&&(admin||canChildren||canManageInstructions||canManageRoutines||hasPermission(actualMembership,"program"));
   const nav=parent&&!preview
     ?[["today","Aujourd’hui"],...(canPlanning?[["planning","Planning"]]:[]),...(canShopping?[["shopping","Courses & caisse"]]:[]),...(canConfig?[["config","Configuration"]]:[])]
     :[["today","Aujourd’hui"],...(canPlanning?[["planning","Planning"]]:[]),...(canShopping?[["shopping","Courses & caisse"]]:[])];
@@ -65,7 +67,6 @@ export default async function AppPage({searchParams}:{searchParams:Promise<Recor
   const canAddShopping=!preview&&hasPermission(actualMembership,"shopping");
   const canPurchase=!preview&&!parent&&hasPermission(actualMembership,"shopping");
   const canParentCash=parent&&!preview&&hasPermission(actualMembership,"cash");
-  const canManageRules=parent&&!preview&&(hasPermission(actualMembership,"journal")||hasPermission(actualMembership,"tasks"));
 
   return <div className="shell"><AutoRefresh/><header className="top"><div className="topin"><div className="brand"><div className="logo">Y!</div><div><div>Nanny Youpiii</div><small className="muted">{own.space.name}</small></div></div><SignOutButton/></div></header>
     <main className="main">
@@ -73,7 +74,7 @@ export default async function AppPage({searchParams}:{searchParams:Promise<Recor
       {section==="today"&&<><Today spaceId={selectedSpaceId} selectedDate={selectedDate} snapshot={snapshot} memberName={memberName} actualMembership={actualMembership} viewMembership={viewMembership} parent={parent} preview={preview} q={q} fullTeam={fullTeam} userFirstName={session.user.name?.split(" ")[0]||""}/>{(!parent||preview)&&<More spaceId={selectedSpaceId} snapshot={snapshot} team={fullTeam} children={snapshot.children} memberName={memberName} parent={false} canAct={canJournal&&!preview&&!parent} routines={[]} selectedDate={selectedDate}/>}</>}
       {section==="planning"&&<Program spaceId={selectedSpaceId} selectedDate={selectedDate} snapshot={snapshot} caregivers={caregiverMembers} children={snapshot.children} routines={routines} memberName={memberName} canEdit={canEditProgram} canAct={canActProgram} q={q} timezone={own.space.timezone}/>} 
       {section==="shopping"&&<div className="stack"><Shopping spaceId={selectedSpaceId} snapshot={snapshot} canAdd={canAddShopping} canPurchase={canPurchase} children={snapshot.children} team={fullTeam} memberName={memberName} viewMembership={viewMembership} canSeeCash={canSeeCash}/>{canParentCash&&<Cash spaceId={selectedSpaceId} snapshot={snapshot} team={fullTeam} memberName={memberName} parent={true} viewMembership={viewMembership} embedded/>}</div>} 
-      {section==="config"&&parent&&!preview&&<div className="stack">{spaces.length>1&&<section className="card"><div className="sectiontitle">Espaces de garde</div><div className="tabs" style={{marginTop:10}}>{spaces.map(x=><Link key={x.space.id} className={x.space.id===selectedSpaceId?"active":""} href={`/app?space=${x.space.id}&section=config`}>{x.space.name}</Link>)}</div></section>}{canChildren&&<Children spaceId={selectedSpaceId} children={snapshot.children} canEdit/>}<Team spaceId={selectedSpaceId} team={fullTeam} children={snapshot.children} invitations={invitations} memberName={memberName} selectedDate={selectedDate} q={q} scheduleRules={scheduleRules} memberChildLinks={memberChildLinks} canAdmin={admin}/><More spaceId={selectedSpaceId} snapshot={snapshot} team={fullTeam} children={snapshot.children} memberName={memberName} parent={canManageRules} canAct={false} routines={routines} selectedDate={selectedDate}/></div>} 
+      {section==="config"&&parent&&!preview&&<div className="stack">{spaces.length>1&&<section className="card"><div className="sectiontitle">Espaces de garde</div><div className="tabs" style={{marginTop:10}}>{spaces.map(x=><Link key={x.space.id} className={x.space.id===selectedSpaceId?"active":""} href={`/app?space=${x.space.id}&section=config`}>{x.space.name}</Link>)}</div></section>}{canChildren&&<Children spaceId={selectedSpaceId} children={snapshot.children} canEdit/>}<Team spaceId={selectedSpaceId} team={fullTeam} children={snapshot.children} invitations={invitations} memberName={memberName} selectedDate={selectedDate} q={q} scheduleRules={scheduleRules} memberChildLinks={memberChildLinks} canAdmin={admin}/><More spaceId={selectedSpaceId} snapshot={snapshot} team={fullTeam} children={snapshot.children} memberName={memberName} parent={parent} canAct={false} routines={routines} selectedDate={selectedDate} canManageInstructions={canManageInstructions} canManageRoutines={canManageRoutines}/></div>} 
     </main>
     <nav className="nav">{nav.map(([id,label])=><Link key={id} className={section===id?"active":""} href={navHref(id)}>{label}</Link>)}</nav>
   </div>;
