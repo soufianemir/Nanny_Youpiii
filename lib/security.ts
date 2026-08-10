@@ -25,8 +25,12 @@ export function isParentRole(role: string) { return role === "PARENT_ADMIN" || r
 export function isAdminRole(role: string) { return role === "PARENT_ADMIN"; }
 
 export function hasPermission(membership: typeof members.$inferSelect, permission: string) {
-  if (isParentRole(membership.role)) return true;
-  return membership.permissions?.[permission] === true;
+  if (isAdminRole(membership.role)) return true;
+  const explicit = membership.permissions?.[permission];
+  if (typeof explicit === "boolean") return explicit;
+  // Backward compatibility for parent accounts created before granular parent permissions existed.
+  if (membership.role === "PARENT") return true;
+  return false;
 }
 
 export async function requirePermission(careSpaceId: string, permission: string) {
