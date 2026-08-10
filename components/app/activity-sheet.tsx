@@ -1,0 +1,28 @@
+import Link from "next/link";
+import type { children as childrenTable, members as membersTable, programItems as programItemsTable } from "@/db/schema";
+import { addActivityAction, deleteActivityAction, updateActivityAction } from "@/app/actions/activity";
+import { activityKeyFromStored, activityTypes } from "@/lib/activity";
+import { Icon, type IconName } from "@/components/ui/icons";
+
+type Child=typeof childrenTable.$inferSelect;
+type Member=typeof membersTable.$inferSelect;
+type ProgramItem=typeof programItemsTable.$inferSelect;
+
+const icons:Record<string,IconName>={MEAL:"meal",NAP:"moon",TOILET:"bath",BEDTIME:"home",SCHOOL:"school",PLAY:"park",MEDICINE:"pill",HEALTH:"alert",MOOD:"heart",OTHER:"more"};
+
+export function ActivitySheet({spaceId,selectedDate,children,caregivers,memberName,parent,closeHref,item,childIds=[],memberIds=[]}:{spaceId:string;selectedDate:string;children:Child[];caregivers:Member[];memberName:(member:Member)=>string;parent:boolean;closeHref:string;item?:ProgramItem;childIds?:string[];memberIds?:string[]}){
+  const editing=Boolean(item);
+  const initialType=activityKeyFromStored(item?.type,item?.title);
+  const customTitle=initialType==="OTHER"?(item?.title||""):"";
+  const scheduled=editing;
+  const action=editing?updateActivityAction:addActivityAction;
+  return <div className="v4-compose-sheet"><Link className="v4-sheet-backdrop" href={closeHref} aria-label="Fermer"/><section className="v4-bottom-sheet v4-activity-sheet" role="dialog" aria-modal="true"><div className="v4-sheet-handle"/><div className="v4-sheet-heading"><div><span className="v4-eyebrow">Activité</span><h2>{editing?"Modifier":"Ajouter"}</h2><p className="v4-form-help">Dites simplement ce qui se passe. L’application le range au bon endroit.</p></div><Link href={closeHref} className="v4-icon-button" aria-label="Fermer"><Icon name="close"/></Link></div>
+    <form className="v4-form" action={action}><input type="hidden" name="spaceId" value={spaceId}/><input type="hidden" name="returnTo" value={closeHref}/>{item&&<input type="hidden" name="itemId" value={item.id}/>}<fieldset className="v4-activity-fieldset"><legend>Quoi ?</legend><div className="v4-activity-types">{activityTypes.map(type=><label className="v4-activity-type" key={type.key}><input type="radio" name="activityType" value={type.key} defaultChecked={type.key===initialType}/><span><Icon name={icons[type.key]} size={21}/><strong>{type.label}</strong></span></label>)}</div><div className="v4-activity-custom"><label>Précisez</label><input name="customTitle" defaultValue={customTitle} placeholder="Piano, anniversaire, devoirs…"/></div></fieldset>
+      <fieldset className="v4-activity-fieldset"><legend>Quand ?</legend><div className="v4-activity-timing"><label><input type="radio" name="timing" value="NOW" defaultChecked={!scheduled}/><span>Maintenant</span></label><label><input type="radio" name="timing" value="SCHEDULED" defaultChecked={scheduled}/><span>Choisir</span></label></div><div className="v4-activity-scheduled"><div className="v4-form-row"><div className="v4-field"><label>Date</label><input name="date" type="date" defaultValue={item?.programDate||selectedDate}/></div><div className="v4-field"><label>Heure</label><input name="time" type="time" defaultValue={item?.plannedStart||""}/></div></div></div></fieldset>
+      {children.length>0&&<fieldset className="v4-activity-fieldset"><legend>Pour qui ?</legend><div className="v4-activity-people">{children.map(child=><label key={child.id}><input type="checkbox" name="childIds" value={child.id} defaultChecked={childIds.includes(child.id)||(!editing&&children.length===1)}/><span>{child.firstName}</span></label>)}</div></fieldset>}
+      <div className="v4-field"><label>Détails <small>(facultatif)</small></label><textarea name="description" rows={4} defaultValue={item?.description||""} placeholder={'Ex. pour un repas :\nBrocolis\nPoulet\nYaourt'}/></div>
+      {parent&&caregivers.length>0&&<details className="v4-more-options"><summary>Plus d’options</summary><div className="v4-form"><div className="v4-field"><label>Qui s’en occupe ?</label><div className="v4-activity-people">{caregivers.map(member=><label key={member.id}><input type="checkbox" name="memberIds" value={member.id} defaultChecked={memberIds.includes(member.id)||(!editing&&caregivers.length===1)}/><span>{memberName(member)}</span></label>)}</div></div><div className="v4-field"><label>Heure de fin</label><input name="end" type="time" defaultValue={item?.plannedEnd||""}/></div></div></details>}
+      <button className="btn brandbtn full">{editing?"Enregistrer":"Ajouter"}</button></form>
+    {item&&<form action={deleteActivityAction} className="v4-activity-delete"><input type="hidden" name="spaceId" value={spaceId}/><input type="hidden" name="itemId" value={item.id}/><input type="hidden" name="returnTo" value={closeHref}/><button className="btn soft full" type="submit">Supprimer cette activité</button></form>}
+  </section></div>;
+}
