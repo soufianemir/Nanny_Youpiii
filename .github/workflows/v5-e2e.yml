@@ -17,6 +17,22 @@ jobs:
         with:
           node-version: 22
       - run: npm install --no-audit --no-fund >/dev/null 2>&1
-      - run: npm run typecheck
+      - name: Capture typecheck
+        shell: bash
+        run: |
+          set +e
+          npm run typecheck > typecheck.log 2>&1
+          echo $? > typecheck.exit
+          exit 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v5-typecheck-log
+          path: |
+            typecheck.log
+            typecheck.exit
+      - name: Gate typecheck
+        shell: bash
+        run: test "$(cat typecheck.exit)" = "0"
       - run: npx playwright install --with-deps chromium >/dev/null 2>&1
       - run: npm run test:e2e
