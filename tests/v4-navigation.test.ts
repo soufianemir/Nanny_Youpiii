@@ -20,8 +20,9 @@ test("les anciennes sections sont absorbées par la nouvelle architecture",()=>{
   assert.equal(normalizeMoreArea("config",undefined),"home");
 });
 
-test("les actions rapides respectent le rôle et les permissions",()=>{
-  assert.deepEqual(quickKinds({parent:true,canProgram:true,canTasks:true,canJournal:true,canShopping:true,canAdmin:true}),["activity","task","instruction","shopping","shift"]);
+test("les actions rapides fusionnent activité et tâche en une seule entrée planning",()=>{
+  assert.deepEqual(quickKinds({parent:true,canProgram:true,canTasks:true,canJournal:true,canShopping:true,canAdmin:true}),["activity","instruction","shopping","shift"]);
+  assert.deepEqual(quickKinds({parent:true,canProgram:false,canTasks:true,canJournal:false,canShopping:false,canAdmin:false}),["activity"]);
   assert.deepEqual(quickKinds({parent:false,canProgram:true,canTasks:true,canJournal:true,canShopping:true,canAdmin:false}),["shopping"]);
   assert.deepEqual(quickKinds({parent:false,canProgram:true,canTasks:true,canJournal:true,canShopping:false,canAdmin:false}),[]);
 });
