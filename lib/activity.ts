@@ -24,7 +24,7 @@ export function activityKeyFromStored(type?: string | null, title?: string | nul
   if (haystack.includes("bain") || haystack.includes("toilette")) return "TOILET";
   if (haystack.includes("coucher") || haystack.includes("dodo")) return "BEDTIME";
   if (haystack.includes("école") || haystack.includes("trajet")) return "SCHOOL";
-  if (haystack.includes("jeu") || haystack.includes("sortie") || haystack.includes("parc") || haystack.includes("activité")) return "PLAY";
+  if (haystack.includes("jeu") || haystack.includes("sortie") || haystack.includes("parc")) return "PLAY";
   if (haystack.includes("médicament")) return "MEDICINE";
   if (haystack.includes("incident") || haystack.includes("santé")) return "HEALTH";
   if (haystack.includes("humeur") || haystack.includes("observation")) return "MOOD";
