@@ -61,6 +61,8 @@ export async function updateProgramStatusAction(formData: FormData) {
   const { session, membership } = await requirePermission(spaceId, "program");
   const [item]=await db.select().from(s.programItems).where(and(eq(s.programItems.id,itemId),eq(s.programItems.careSpaceId,spaceId))).limit(1);
   if(!item) throw new Error("PROGRAM_ITEM_NOT_FOUND");
+  const linkedChildren=(await db.select({id:s.programChildren.childId}).from(s.programChildren).where(eq(s.programChildren.programItemId,itemId))).map(x=>x.id);
+  await assertChildren(membership.id,linkedChildren);
   if(item.programDate>await spaceToday(spaceId)) throw new Error("FUTURE_ITEM_CANNOT_BE_REALIZED");
   if (!isParentRole(membership.role)) {
     const [assigned] = await db.select().from(s.programAssignees).where(and(eq(s.programAssignees.programItemId, itemId), eq(s.programAssignees.memberId, membership.id))).limit(1);
@@ -106,6 +108,8 @@ export async function updateTaskStatusAction(formData: FormData) {
   const { membership } = await requirePermission(spaceId, "tasks");
   const [task]=await db.select().from(s.tasks).where(and(eq(s.tasks.id,taskId),eq(s.tasks.careSpaceId,spaceId))).limit(1);
   if(!task) throw new Error("TASK_NOT_FOUND");
+  const linkedChildren=(await db.select({id:s.taskChildren.childId}).from(s.taskChildren).where(eq(s.taskChildren.taskId,taskId))).map(x=>x.id);
+  await assertChildren(membership.id,linkedChildren);
   if(task.taskDate&&task.taskDate>await spaceToday(spaceId)) throw new Error("FUTURE_TASK_CANNOT_BE_REALIZED");
   if (!isParentRole(membership.role)) {
     const [assigned] = await db.select().from(s.taskAssignees).where(and(eq(s.taskAssignees.taskId, taskId), eq(s.taskAssignees.memberId, membership.id))).limit(1);
