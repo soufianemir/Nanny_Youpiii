@@ -1,30 +1,59 @@
 import Link from "next/link";
+import { AppHeader, AppShell, BottomNavigation } from "@/components/ui/app-shell";
+import { Icon } from "@/components/ui/icons";
+import { Card } from "@/components/ui/primitives";
+import { Today } from "@/components/app/today";
+import { Planning } from "@/components/app/planning";
+import { Journal } from "@/components/app/journal";
+import { ShoppingCash } from "@/components/app/shopping-cash";
+import { ChildrenPanel } from "@/components/app/children-panel";
+import { TeamPanel } from "@/components/app/team-panel";
+import { RulesPanel } from "@/components/app/rules-panel";
+import { MoreHub } from "@/components/app/more-hub";
+import { getDemoData } from "@/lib/demo-data";
+import { PRIMARY_NAV, normalizeMoreArea, normalizeSection } from "@/lib/v4-navigation";
+import { sectionDate } from "@/lib/coherence";
+import type { members } from "@/db/schema";
 
-const parentNav=[["today","Aujourd’hui"],["planning","Planning"],["shopping","Courses & caisse"],["config","Configuration"]] as const;
-const nannyNav=[["today","Aujourd’hui"],["planning","Planning"],["shopping","Courses & caisse"]] as const;
 type Caregiver="nora"|"sophie";
-const caregiverName=(c:Caregiver)=>c==="sophie"?"Sophie":"Nora";
-
-function DemoHeader({role,caregiver}:{role:string;caregiver:Caregiver}){return <><div className="demo-banner"><span>Mode démo · aucune donnée réelle</span><Link className="btn primary" href="/auth/sign-up">Créer mon compte</Link></div><header className="top"><div className="topin"><Link className="brand" href="/"><div className="logo">Y!</div><div><div>Nanny Youpiii</div><small className="muted">Famille Démo</small></div></Link><div className="tabs demo-role-tabs"><Link className={role==="parent"?"active":""} href="/demo?role=parent&section=today">Parent</Link><Link className={role==="nanny"&&caregiver==="nora"?"active":""} href="/demo?role=nanny&caregiver=nora&section=today">Nora</Link><Link className={role==="nanny"&&caregiver==="sophie"?"active":""} href="/demo?role=nanny&caregiver=sophie&section=today">Sophie</Link></div></div></header></>}
-
-function TodayParent(){return <div className="stack"><section className="hero"><div className="eyebrow">Vue parent</div><h1>Bonjour Camille</h1><p className="muted">Deux intervenantes, deux horaires et deux expériences distinctes.</p><div className="row wrap" style={{marginTop:16}}><span className="pill green">Nora · 08:30–18:00</span><span className="pill green">Sophie · 18:00–22:30</span></div></section><section className="card"><div className="sectiontitle">Voir l’application comme…</div><div className="row wrap" style={{marginTop:12}}><Link className="btn soft" href="/demo?role=nanny&caregiver=nora&section=today">👀 Nora</Link><Link className="btn soft" href="/demo?role=nanny&caregiver=sophie&section=today">👀 Sophie</Link></div></section><div className="grid"><section className="card"><div className="sectiontitle">Aujourd’hui avec Lina</div><div className="list"><div className="item"><div><strong>10:00 · Parc</strong><small>Nora</small></div><span className="pill green">Fait</span></div><div className="item"><div><strong>15:30 · Piscine</strong><small>Nora</small></div><span className="pill">Prévu</span></div><div className="item"><div><strong>19:00 · Dîner</strong><small>Sophie</small></div><span className="pill">Prévu</span></div><div className="item"><div><strong>20:30 · Histoire & coucher</strong><small>Sophie</small></div><span className="pill">Prévu</span></div></div></section><section className="card money"><div className="sectiontitle">Caisse</div><div className="metric">85,30 €</div><div className="divider"/><b>À rembourser à Nora : 5,00 €</b><br/><b>À rembourser à Sophie : 0,00 €</b></section></div></div>}
-
-function TodayNanny({caregiver}:{caregiver:Caregiver}){if(caregiver==="sophie")return <div className="stack"><section className="hero"><div className="eyebrow">Vue baby-sitter</div><h1>Bonsoir Sophie</h1><p className="muted">Uniquement la soirée et les informations utiles à Sophie.</p><span className="pill green">Lina · 18:00–22:30</span></section><section className="card"><div className="sectiontitle">À savoir</div><div className="list"><div className="item"><strong>🚫 Pas de vidéos</strong></div><div className="item"><strong>🎧 Lunii autorisée</strong></div><div className="item"><strong>🍽 Dîner préparé au réfrigérateur</strong></div></div></section><section className="card"><div className="sectiontitle">Ce soir</div><div className="list"><div className="item"><strong>19:00 · Dîner</strong><span className="pill">À faire</span></div><div className="item"><strong>19:45 · Toilette</strong><span className="pill">À faire</span></div><div className="item"><strong>20:00 · Brosser les dents</strong><span className="pill">À faire</span></div><div className="item"><strong>20:15 · Lire une histoire</strong><span className="pill">À faire</span></div><div className="item"><strong>20:45 · Coucher</strong><span className="pill">À faire</span></div></div></section></div>;
-return <div className="stack"><section className="hero"><div className="eyebrow">Vue nounou</div><h1>Bonjour Nora</h1><p className="muted">Uniquement la garde de journée.</p><span className="pill green">Lina + Jules · 08:30–18:00</span></section><section className="card"><div className="sectiontitle">Important aujourd’hui</div><div className="list"><div className="item"><strong>⚠️ Bonnet pour la piscine</strong></div><div className="item"><strong>🚫 Pas de vidéos</strong></div></div></section><section className="card"><div className="sectiontitle">Programme</div><div className="list"><div className="item"><strong>10:00 · Parc</strong><span className="pill green">Fait</span></div><div className="item"><strong>12:15 · Déjeuner</strong><span className="pill">Ensuite</span></div><div className="item"><strong>15:30 · Piscine</strong><span className="pill">Prévu</span></div></div></section></div>}
-
-function PlanningDemo({role,caregiver}:{role:string;caregiver:Caregiver}){return <div className="stack"><div><div className="eyebrow">Planning étendu</div><h1>Planning</h1><p className="muted">Historique et avenir dans le même écran.</p></div><section className="card"><div className="sectiontitle">Mercredi 12 août</div><div className="list">{role==="parent"?<><div className="item"><strong>09:00 · École</strong><span>Nora</span></div><div className="item"><strong>19:00 · Dîner</strong><span>Sophie</span></div></>:caregiver==="nora"?<><div className="item"><strong>09:00 · École</strong><span className="pill">Prévu</span></div><div className="item"><strong>16:00 · Parc</strong><span className="pill">Prévu</span></div></>:<><div className="item"><strong>19:00 · Dîner</strong><span className="pill">Prévu</span></div><div className="item"><strong>20:45 · Coucher</strong><span className="pill">Prévu</span></div></>}</div></section></div>}
-
-function ShoppingDemo({role,caregiver}:{role:string;caregiver:Caregiver}){const buyer=role==="parent"?"Nora":caregiverName(caregiver);return <div className="stack"><div><div className="eyebrow">Une seule chaîne</div><h1>Courses & caisse</h1><p className="muted">Le prix saisi au moment de l’achat devient immédiatement la dépense.</p></div><section className="card shopcash-hero"><div><div className="eyebrow">Caisse disponible</div><div className="metric">85,30 €</div></div>{role==="nanny"&&<div><div className="eyebrow">À vous rembourser</div><div className="metric smallmetric">{caregiver==="nora"?"5,00 €":"0,00 €"}</div></div>}<div><div className="eyebrow">À acheter</div><div className="metric smallmetric">2</div></div></section><div className="grid"><section className="card"><div className="sectiontitle">À acheter</div><div className="list"><div className="item purchase-item"><div><strong>Yaourts x4</strong><small>Pour le goûter</small></div>{role==="nanny"?<div className="purchase-action"><label className="price-field"><span>Prix</span><input placeholder="€" disabled/></label><button className="btn primary" disabled>Acheté ✓</button></div>:<span className="pill">À acheter</span>}</div><div className="item purchase-item"><div><strong>Compotes</strong><small>Sans sucre ajouté</small></div><span className="pill">À acheter</span></div></div></section><section className="card"><div className="sectiontitle">Acheté</div><div className="list"><div className="item status-DONE"><div><strong>✅ Lait</strong><small>{buyer} · dépense enregistrée</small></div><b>3,20 €</b></div><div className="item status-DONE"><div><strong>✅ Crème solaire</strong><small>Nora · dépense enregistrée</small></div><b>11,50 €</b></div></div></section></div></div>}
-
-function ConfigDemo(){return <div className="stack"><div><div className="eyebrow">Configuration parent</div><h1>Enfants & équipe</h1><p className="muted">Chaque intervenant est sélectionnable et possède ses propres attributions.</p></div><section className="card"><div className="sectiontitle">Voir l’application comme…</div><div className="row wrap" style={{marginTop:12}}><Link className="btn soft" href="/demo?role=nanny&caregiver=nora&section=today">👀 Nora</Link><Link className="btn soft" href="/demo?role=nanny&caregiver=sophie&section=today">👀 Sophie</Link></div></section><div className="grid"><section className="card"><div className="sectiontitle">Enfants</div><div className="list"><div className="item"><strong>Lina</strong><span>5 ans</span></div><div className="item"><strong>Jules</strong><span>2 ans</span></div></div></section><section className="card"><div className="sectiontitle">Équipe</div><div className="list"><div className="item"><div><strong>Nora</strong><small>Nounou · Lina + Jules</small></div><Link className="btn soft" href="/demo?role=nanny&caregiver=nora&section=today">Voir comme Nora</Link></div><div className="item"><div><strong>Sophie</strong><small>Baby-sitter · Lina</small></div><Link className="btn soft" href="/demo?role=nanny&caregiver=sophie&section=today">Voir comme Sophie</Link></div></div></section></div></div>}
+type Member=typeof members.$inferSelect;
 
 export default async function DemoPage({searchParams}:{searchParams:Promise<Record<string,string|undefined>>}){
   const params=await searchParams;
-  const role=params.role==="nanny"?"nanny":"parent";
-  const caregiver:Caregiver=params.caregiver==="sophie"?"sophie":"nora";
-  const nav=role==="parent"?parentNav:nannyNav;
-  const requested=params.section||"today";
-  const section=nav.some(([id])=>id===requested)?requested:"today";
-  const href=(id:string)=>`/demo?role=${role}${role==="nanny"?`&caregiver=${caregiver}`:""}&section=${id}`;
-  return <div className="shell demo-shell"><DemoHeader role={role} caregiver={caregiver}/><main className="main">{section==="today"&&(role==="parent"?<TodayParent/>:<TodayNanny caregiver={caregiver}/>)}{section==="planning"&&<PlanningDemo role={role} caregiver={caregiver}/>} {section==="shopping"&&<ShoppingDemo role={role} caregiver={caregiver}/>} {section==="config"&&role==="parent"&&<ConfigDemo/>}</main><nav className="nav demo-nav">{nav.map(([id,label])=><Link key={id} className={section===id?"active":""} href={href(id)}>{label}</Link>)}</nav></div>
+  const data=getDemoData();
+  const previewCaregiver:Caregiver|undefined=params.preview===data.sophie.id?"sophie":params.preview===data.nora.id?"nora":undefined;
+  const role=params.role==="nanny"||previewCaregiver?"nanny":"parent";
+  const caregiver:Caregiver=previewCaregiver||(params.caregiver==="sophie"?"sophie":"nora");
+  const viewMembership=role==="parent"?data.parent:caregiver==="sophie"?data.sophie:data.nora;
+  const snapshot=role==="parent"?data.parentSnapshot:caregiver==="sophie"?data.sophieSnapshot:data.noraSnapshot;
+  const canPlanning=true;const canJournal=true;
+  const section=normalizeSection(params.section,canPlanning,canJournal);
+  const area=normalizeMoreArea(params.section,params.area);
+  const selectedDate=sectionDate(section,params.date||data.date,data.date);
+  const memberName=(member:Member)=>data.names.get(member.id)||member.label||member.role;
+
+  const q=(extra:Record<string,string>)=>{
+    let nextRole=role;let nextCaregiver=caregiver;
+    if(extra.preview===data.nora.id){nextRole="nanny";nextCaregiver="nora";}
+    if(extra.preview===data.sophie.id){nextRole="nanny";nextCaregiver="sophie";}
+    const query=new URLSearchParams({role:nextRole,...(nextRole==="nanny"?{caregiver:nextCaregiver}:{}),date:selectedDate});
+    for(const [key,value] of Object.entries(extra)){if(key==="preview")continue;if(value)query.set(key,value);else query.delete(key);}
+    return `/demo?${query}`;
+  };
+  const nav=PRIMARY_NAV.map(item=>({id:item.id,label:item.label,icon:item.icon,href:q({section:item.id,date:sectionDate(item.id,selectedDate,data.date)})}));
+  const roleSwitch=<div className="v4-demo-switch"><Link className={role==="parent"?"is-active":""} href="/demo?role=parent&section=today">Parent</Link><Link className={role==="nanny"&&caregiver==="nora"?"is-active":""} href="/demo?role=nanny&caregiver=nora&section=today">Nora</Link><Link className={role==="nanny"&&caregiver==="sophie"?"is-active":""} href="/demo?role=nanny&caregiver=sophie&section=today">Sophie</Link></div>;
+  const header=<AppHeader spaceName={data.space.name} context={`Démo · ${role==="parent"?"Parent":memberName(viewMembership)}`} action={roleSwitch}/>;
+
+  return <AppShell header={header} navigation={<BottomNavigation items={nav} activeId={section}/> }>
+    <div className="v4-demo-banner"><span><Icon name="eye" size={16}/> Mode démo · aucune donnée réelle</span><Link href="/auth/sign-up" className="v4-text-action">Créer mon espace</Link></div>
+    {section==="today"&&<Today spaceId={data.space.id} selectedDate={data.date} snapshot={snapshot} memberName={memberName} actualMembership={viewMembership} viewMembership={viewMembership} parent={role==="parent"} preview={true} q={q} fullTeam={data.team} userFirstName={role==="parent"?"Camille":""} canActProgram={false} canActTasks={false} timezone={data.space.timezone}/>} 
+    {section==="planning"&&<Planning spaceId={data.space.id} selectedDate={data.date} snapshot={snapshot} caregivers={role==="parent"?[data.nora,data.sophie]:[viewMembership]} children={snapshot.children} routines={data.routines} memberName={memberName} canEditProgram={false} canEditTasks={false} canActProgram={false} canActTasks={false} q={q} timezone={data.space.timezone}/>} 
+    {section==="journal"&&<Journal spaceId={data.space.id} selectedDate={data.date} snapshot={snapshot} team={data.team} memberName={memberName} canAdd={false} q={q}/>} 
+    {section==="more"&&area==="home"&&<MoreHub q={q} parent={role==="parent"} canChildren={role==="parent"} canTeam={role==="parent"} canShopping={role==="parent"||caregiver==="nora"} canCash={role==="parent"||caregiver==="nora"} canRules={role==="parent"}/>} 
+    {section==="more"&&area==="children"&&role==="parent"&&<ChildrenPanel spaceId={data.space.id} children={data.children} canEdit={false} q={q}/>} 
+    {section==="more"&&area==="team"&&role==="parent"&&<TeamPanel spaceId={data.space.id} team={data.team} children={data.children} invitations={[]} memberName={memberName} selectedDate={data.date} q={q} scheduleRules={data.scheduleRules} memberChildLinks={data.memberChildLinks} canAdmin={false} previewableMemberIds={new Set([data.nora.id,data.sophie.id])}/>} 
+    {section==="more"&&area==="rules"&&role==="parent"&&<RulesPanel spaceId={data.space.id} snapshot={data.parentSnapshot} team={data.team} routines={data.routines} canManage={false} q={q}/>} 
+    {section==="more"&&(area==="shopping"||area==="cash")&&(role==="parent"||caregiver==="nora")&&<ShoppingCash spaceId={data.space.id} snapshot={snapshot} team={data.team} children={snapshot.children} memberName={memberName} viewMembership={viewMembership} parent={role==="parent"} canAdd={false} canPurchase={false} canSeeCash={Boolean(snapshot.cash)} canManageCash={false} q={q}/>} 
+    {section==="more"&&area==="home"&&role==="nanny"&&caregiver==="sophie"&&<Card tone="soft"><div className="v4-list-row"><span className="v4-row-icon"><Icon name="settings"/></span><span className="v4-row-copy"><strong>Accès minimal</strong><small>Sophie voit uniquement Aujourd’hui, Planning et Journal pour Lina.</small></span></div></Card>}
+  </AppShell>;
 }

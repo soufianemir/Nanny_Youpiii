@@ -1,24 +1,53 @@
 import Link from "next/link";
+import type { members } from "@/db/schema";
+import { spaceSnapshot } from "@/lib/data";
 import { endShiftAction, startShiftAction } from "@/app/actions/schedule";
-import { dateLabel, money, today } from "./utils";
+import { updateProgramStatusAction, updateTaskStatusAction } from "@/app/actions/program";
+import { Icon, type IconName } from "@/components/ui/icons";
+import { Avatar, Card, EmptyState, SectionHeader, StatusBadge } from "@/components/ui/primitives";
+import { activityIcon } from "@/lib/v4-presentation";
+import { dateLabel, today } from "./utils";
 
-const clock=(value:any)=>value?new Intl.DateTimeFormat("fr-FR",{hour:"2-digit",minute:"2-digit"}).format(new Date(value)):null;
+type Snapshot=Awaited<ReturnType<typeof spaceSnapshot>>;
+type Member=typeof members.$inferSelect;
+type Query=(extra:Record<string,string>)=>string;
+type TimelineRow={id:string;kind:"program"|"task";time:string|null;title:string;subtitle:string;status:string;icon:IconName;plannedEnd?:string|null};
 
-export function Today({spaceId,selectedDate,snapshot,memberName,actualMembership,viewMembership,parent,preview,q,fullTeam,userFirstName}:any){
-  const activeShift=snapshot.shifts.find((x:any)=>x.status==="ACTIVE")||snapshot.shifts[0];
-  const important=snapshot.instructions.filter((i:any)=>i.kind==="IMPORTANT"||i.kind==="FORBIDDEN");
-  const done=snapshot.program.filter((p:any)=>p.status==="DONE").length; const notDone=snapshot.program.filter((p:any)=>p.status==="NOT_DONE").length;
-  const spend=snapshot.expenses.reduce((a:number,e:any)=>a+Number(e.amount),0);
-  const shiftMember=(id:string)=>fullTeam.find((m:any)=>m.id===id)||viewMembership;
-  return <div className="stack"><div className="row between wrap"><div><div className="eyebrow">Aujourd’hui</div><b style={{textTransform:"capitalize"}}>{dateLabel(selectedDate)}</b></div><Link className="btn soft" href={q({section:"planning"})}>Planning étendu</Link></div><section className="hero"><div className="eyebrow">{parent&&!preview?"Vue parent":"Vue intervenant"}</div><h1>{parent&&!preview?`Bonjour ${userFirstName}`:`Bonjour ${memberName(viewMembership)}`}</h1><p className="muted">{parent&&!preview?"Tout ce qu’il faut comprendre aujourd’hui en quelques secondes.":"Uniquement ce qui vous concerne : votre garde, votre programme, vos tâches, vos courses et vos transmissions."}</p>{snapshot.shifts.length>0&&<div className="row wrap" style={{marginTop:16}}>{snapshot.shifts.map((sh:any)=><span className="pill green" key={sh.id}>{memberName(shiftMember(sh.memberId))} · {sh.plannedStart}–{sh.plannedEnd}</span>)}</div>}</section>
-  <div className="grid"><div className="stack">
-    <section className="card"><div className="row between"><div><div className="sectiontitle">Programme</div><small className="muted">Prévu et réalisé</small></div><Link className="btn soft" href={q({section:"planning"})}>Ouvrir</Link></div><div className="list">{snapshot.program.length?snapshot.program.map((p:any)=>{const actual=p.status==="DONE"?[clock(p.actualStart),clock(p.actualEnd)].filter(Boolean).join("–"):null;return <div className={`item status-${p.status}`} key={p.id}><div><strong>{p.plannedStart||"—"} · {p.title}</strong><small>{actual?`Réalisé ${actual}`:`${p.type} ${p.location?`· ${p.location}`:""}`}</small></div><span className={`pill ${p.status==="DONE"?"green":p.status==="NOT_DONE"?"red":""}`}>{p.status==="PLANNED"?"Prévu":p.status==="DONE"?"Fait":"Non fait"}</span></div>}):<div className="empty">Aucun programme pour cette journée.</div>}</div></section>
-    <section className="card"><div className="sectiontitle">Tâches</div><div className="list">{snapshot.tasks.length?snapshot.tasks.map((t:any)=><div className={`item status-${t.status}`} key={t.id}><div><strong>{t.time?`${t.time} · `:""}{t.title}</strong><small>{t.note||""}</small></div><span className="pill">{t.status}</span></div>):<div className="empty">Aucune tâche affectée.</div>}</div></section>
-  </div><div className="stack">
-    {important.length>0&&<section className="card"><div className="sectiontitle">Important aujourd’hui</div><div className="list">{important.map((i:any)=><div className="item" key={i.id}><strong>{i.kind==="FORBIDDEN"?"🚫":"⚠️"} {i.text}</strong></div>)}</div></section>}
-    {snapshot.handovers.length>0&&<section className="card"><div className="sectiontitle">Relais / transmission</div><div className="list">{snapshot.handovers.map((h:any)=><div className="item" key={h.id}><div><strong>💬 Transmission</strong><small>{h.text}</small></div></div>)}</div></section>}
-    {snapshot.cash&&<section className="card money"><div className="sectiontitle">Caisse</div><div className="metric">{money(snapshot.cash.balance||0)}</div><div className="muted">disponibles</div>{!parent||preview?<><div className="divider"/><b>À vous rembourser : {money(snapshot.advances.find((a:any)=>a.memberId===viewMembership.id)?.balance||0)}</b></>:null}</section>}
-    <section className="card"><div className="sectiontitle">Résumé</div><div className="summary" style={{marginTop:12}}><div><b>{done}</b><span>réalisé</span></div><div><b>{notDone}</b><span>non réalisé</span></div><div><b>{money(spend)}</b><span>achats</span></div></div></section>
-    {!preview&&!parent&&selectedDate===today()&&activeShift&&<section className="card"><div className="sectiontitle">Ma garde</div>{activeShift.status==="PLANNED"?<form action={startShiftAction}><input type="hidden" name="spaceId" value={spaceId}/><input type="hidden" name="shiftId" value={activeShift.id}/><button className="btn brandbtn full">Commencer la garde</button></form>:activeShift.status==="ACTIVE"?<form action={endShiftAction} className="form"><input type="hidden" name="spaceId" value={spaceId}/><input type="hidden" name="shiftId" value={activeShift.id}/><div className="field"><label>Transmission rapide</label><textarea name="handover" placeholder="Elle a goûté, un peu fatiguée, affaires prêtes…"/></div><button className="btn primary full">Terminer la garde</button></form>:<span className="pill green">Garde terminée</span>}</section>}
-  </div></div></div>;
+function timeline(snapshot:Snapshot):TimelineRow[]{
+  const program=snapshot.program.map(item=>({id:item.id,kind:"program" as const,time:item.plannedStart,title:item.title,subtitle:item.description||item.location||item.type,status:item.status,icon:activityIcon(item.type,item.title),plannedEnd:item.plannedEnd}));
+  const tasks=snapshot.tasks.map(item=>({id:item.id,kind:"task" as const,time:item.time,title:item.title,subtitle:item.description||item.note||"Tâche",status:item.status,icon:activityIcon("tâche",item.title)}));
+  return [...program,...tasks].sort((a,b)=>(a.time||"99:99").localeCompare(b.time||"99:99"));
+}
+
+function TimelineAction({row,spaceId,enabled}:{row:TimelineRow;spaceId:string;enabled:boolean}){
+  if(row.status==="DONE")return <span className="v4-check-button is-done" aria-label="Terminé"><Icon name="check"/></span>;
+  if(!enabled)return <StatusBadge>{row.status==="NOT_DONE"?"Non fait":"Prévu"}</StatusBadge>;
+  if(row.kind==="program")return <form action={updateProgramStatusAction}><input type="hidden" name="spaceId" value={spaceId}/><input type="hidden" name="itemId" value={row.id}/><input type="hidden" name="status" value="DONE"/><input type="hidden" name="actualStart" value={row.time||""}/><input type="hidden" name="actualEnd" value={row.plannedEnd||row.time||""}/><button className="v4-check-button" aria-label={`Marquer ${row.title} comme terminé`}><Icon name="check"/></button></form>;
+  return <form action={updateTaskStatusAction}><input type="hidden" name="spaceId" value={spaceId}/><input type="hidden" name="taskId" value={row.id}/><input type="hidden" name="status" value="DONE"/><button className="v4-check-button" aria-label={`Marquer ${row.title} comme terminé`}><Icon name="check"/></button></form>;
+}
+
+export function Today({spaceId,selectedDate,snapshot,memberName,viewMembership,parent,preview,q,fullTeam,userFirstName,canActProgram,canActTasks,timezone}:{spaceId:string;selectedDate:string;snapshot:Snapshot;memberName:(member:Member)=>string;actualMembership:Member;viewMembership:Member;parent:boolean;preview:boolean;q:Query;fullTeam:Member[];userFirstName:string;canActProgram:boolean;canActTasks:boolean;timezone:string}){
+  const rows=timeline(snapshot);
+  const important=snapshot.instructions.filter(item=>item.kind==="IMPORTANT"||item.kind==="FORBIDDEN"||item.kind==="ALLOWED");
+  const activeShift=snapshot.shifts.find(item=>item.status==="ACTIVE")||snapshot.shifts.find(item=>item.status==="PLANNED")||snapshot.shifts[0];
+  const shiftMember=(id:string)=>fullTeam.find(member=>member.id===id)||viewMembership;
+  const next=rows.find(row=>row.status!=="DONE"&&row.status!=="NOT_DONE");
+  const recentNote=snapshot.notes[0];
+  const recentAuthor=recentNote?fullTeam.find(member=>member.id===recentNote.memberId):undefined;
+  const isToday=selectedDate===today(timezone);
+  const canInteract=!preview&&isToday;
+  const greeting=parent&&!preview?(userFirstName?`Bonjour ${userFirstName}`:"Bonjour"):`Bonjour ${memberName(viewMembership)}`;
+
+  return <div className="v4-stack">
+    <div className="v4-today-hero"><span className="v4-eyebrow">{dateLabel(selectedDate)}</span><h1>{greeting}</h1><p>{parent&&!preview?"Votre journée familiale, sans bruit inutile.":"Votre garde, vos prochaines actions et les informations utiles."}</p>{snapshot.shifts.length>0&&<div className="v4-shift-strip">{snapshot.shifts.map(shift=>{const member=shiftMember(shift.memberId);return <div className="v4-shift-row" key={shift.id}><Avatar name={memberName(member)} size="sm"/><span className="v4-row-copy"><strong>{memberName(member)}</strong><small>{shift.plannedStart} → {shift.plannedEnd}{shift.status==="ACTIVE"?" · garde en cours":""}</small></span>{shift.status==="ACTIVE"&&<StatusBadge tone="success">En cours</StatusBadge>}</div>})}</div>}</div>
+
+    {next&&<Card className="v4-now-card" tone="brand"><span className="v4-eyebrow">Ensuite</span><div className="v4-section-header v4-next-heading"><div><h2>{next.time?`${next.time} · `:""}{next.title}</h2><small className="muted">{next.subtitle}</small></div><span className="v4-timeline-icon"><Icon name={next.icon}/></span></div></Card>}
+
+    <div className="v4-grid-2"><div className="v4-stack"><Card><SectionHeader title={parent&&!preview?"Aujourd’hui":"Ma journée"} eyebrow={rows.length?`${rows.filter(row=>row.status==="DONE").length}/${rows.length} terminé${rows.length>1?"s":""}`:undefined} action={<Link className="v4-text-action" href={q({section:"planning"})}>Planning</Link>}/>{rows.length?<div className="v4-timeline">{rows.map(row=><div key={`${row.kind}-${row.id}`} className={`v4-timeline-item ${row.status==="DONE"?"is-done":""}`}><time className="v4-timeline-time">{row.time||"—"}</time><span className="v4-timeline-rail"><span className="v4-timeline-icon"><Icon name={row.icon} size={18}/></span></span><span className="v4-timeline-copy"><strong>{row.title}</strong><small>{row.status==="DONE"?"Terminé":row.subtitle}</small></span><span className="v4-timeline-action"><TimelineAction row={row} spaceId={spaceId} enabled={canInteract&&(row.kind==="program"?canActProgram:canActTasks)}/></span></div>)}</div>:<EmptyState title="Rien de prévu aujourd’hui" description="Profitez d’une journée tranquille."/>}</Card></div>
+      <div className="v4-stack">{important.length>0&&<Card><SectionHeader title="À savoir aujourd’hui"/><div className="v4-instruction-list">{important.map(item=><div key={item.id} className={`v4-instruction ${item.kind==="FORBIDDEN"?"danger":item.kind==="IMPORTANT"?"warning":""}`}><Icon name={item.kind==="FORBIDDEN"?"ban":item.kind==="IMPORTANT"?"alert":"headphones"} size={18}/><span>{item.text}</span></div>)}</div></Card>}
+      {recentNote&&<Card><SectionHeader title="Journal récent" action={<Link href={q({section:"journal"})} className="v4-text-action">Tout voir</Link>}/><div className="v4-list-row"><span className="v4-row-icon"><Icon name="journal"/></span><span className="v4-row-copy"><strong>{recentNote.value}</strong><small>{recentNote.comment||"Moment ajouté au journal"}{recentAuthor?` · ${memberName(recentAuthor)}`:""}</small></span></div></Card>}
+      {snapshot.handovers.length>0&&<Card><SectionHeader title="Transmission" eyebrow="Relais"/><div className="v4-stack">{snapshot.handovers.slice(0,3).map(handover=><div className="v4-list-row" key={handover.id}><span className="v4-row-icon"><Icon name="handover"/></span><span className="v4-row-copy"><strong>À transmettre</strong><small>{handover.text}</small></span></div>)}</div><Link href={q({section:"journal"})} className="v4-text-action">Voir le journal</Link></Card>}
+      {!preview&&!parent&&isToday&&activeShift&&<Card tone={activeShift.status==="ACTIVE"?"brand":"default"}><SectionHeader title="Ma garde" eyebrow={`${activeShift.plannedStart} → ${activeShift.plannedEnd}`}/>{activeShift.status==="PLANNED"?<form action={startShiftAction}><input type="hidden" name="spaceId" value={spaceId}/><input type="hidden" name="shiftId" value={activeShift.id}/><button className="btn brandbtn full">Commencer la garde</button></form>:activeShift.status==="ACTIVE"?<form action={endShiftAction} className="v4-form"><input type="hidden" name="spaceId" value={spaceId}/><input type="hidden" name="shiftId" value={activeShift.id}/><div className="v4-field"><label htmlFor={`handover-${activeShift.id}`}>Transmission de fin de garde</label><textarea id={`handover-${activeShift.id}`} name="handover" placeholder="Goûter OK, un peu fatiguée, sac prêt…"/></div><button className="btn primary full">Terminer et transmettre</button></form>:<StatusBadge tone="success">Garde terminée</StatusBadge>}</Card>}</div>
+    </div>
+  </div>;
 }

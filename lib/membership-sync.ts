@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { db, pool } from "@/db";
 import * as s from "@/db/schema";
 
@@ -42,6 +42,19 @@ export async function reconcileLegacyMemberships(userId: string, email: string) 
   );
 }
 
+async function invitedPermissions(invitationId:string,role:typeof s.memberRole.enumValues[number]){
+  const [event]=await db.select({metadata:s.activityLogs.metadata}).from(s.activityLogs).where(and(
+    eq(s.activityLogs.entityType,"invitation"),
+    eq(s.activityLogs.entityId,invitationId),
+    eq(s.activityLogs.action,"INVITATION_SENT"),
+  )).orderBy(desc(s.activityLogs.createdAt)).limit(1);
+  const configured=event?.metadata?.permissions;
+  if(configured&&typeof configured==="object"&&!Array.isArray(configured))return configured as Record<string,boolean>;
+  return role === "PARENT" || role === "PARENT_ADMIN"
+    ? { children: true, program: true, tasks: true, shopping: true, cash: true, journal: true }
+    : { program: true, tasks: true, shopping: true, cash: true, journal: true };
+}
+
 export async function syncAcceptedInvitations(userId: string, email: string) {
   const result = await pool.query<{
     invitationId: string;
@@ -58,16 +71,13 @@ export async function syncAcceptedInvitations(userId: string, email: string) {
   );
 
   for (const invite of result.rows) {
+    const permissions=await invitedPermissions(invite.invitationId,invite.role);
     await db.transaction(async (tx) => {
-      const defaults: Record<string, boolean> = invite.role === "PARENT" || invite.role === "PARENT_ADMIN"
-        ? { children: true, program: true, tasks: true, shopping: true, cash: true, journal: true }
-        : { program: true, tasks: true, shopping: true, cash: true, journal: true };
-
       let [member] = await tx.insert(s.members).values({
         careSpaceId: invite.careSpaceId,
         userId,
         role: invite.role,
-        permissions: defaults,
+        permissions,
       }).onConflictDoNothing().returning();
 
       if (!member) {
@@ -75,6 +85,7 @@ export async function syncAcceptedInvitations(userId: string, email: string) {
           eq(s.members.careSpaceId, invite.careSpaceId),
           eq(s.members.userId, userId),
         )).limit(1);
+        if(member)await tx.update(s.members).set({permissions}).where(eq(s.members.id,member.id));
       }
 
       if (member && invite.childIds?.length) {

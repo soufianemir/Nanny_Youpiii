@@ -1,9 +1,13 @@
 {
+  "id":"/",
   "name":"Nanny Youpiii",
   "short_name":"Youpiii",
+  "description":"Le quotidien de vos enfants, partagé avec les bonnes personnes.",
   "start_url":"/",
+  "scope":"/",
   "display":"standalone",
-  "background_color":"#f7f4ee",
-  "theme_color":"#f7f4ee",
-  "icons":[{"src":"/icon.svg","sizes":"any","type":"image/svg+xml"}]
+  "orientation":"portrait-primary",
+  "background_color":"#f7f6f2",
+  "theme_color":"#f7f6f2",
+  "icons":[{"src":"/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
 }
