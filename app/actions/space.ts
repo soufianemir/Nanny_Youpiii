@@ -9,7 +9,7 @@ import * as s from "@/db/schema";
 import { assertChildren, assertMembers, log, text } from "@/lib/action-helpers";
 import { auth } from "@/lib/auth";
 import { authOrganizationIdForSpace, authOrgSlug, latestAuthInvitation } from "@/lib/membership-sync";
-import { requireAdmin, requireMembership, requireParent, requireUser } from "@/lib/security";
+import { isParentRole, requireAdmin, requirePermission, requireUser } from "@/lib/security";
 
 export async function createSpaceAction(formData: FormData) {
   const session = await requireUser();
@@ -131,11 +131,12 @@ export async function resendInvitationAction(formData: FormData) {
 
 export async function addChildAction(formData: FormData) {
   const spaceId = text(formData, "spaceId");
-  const { session } = await requireParent(spaceId);
+  const { session, membership } = await requirePermission(spaceId,"children");
+  if(!isParentRole(membership.role)) throw new Error("FORBIDDEN");
   const firstName = text(formData, "firstName");
   const birthDate = text(formData, "birthDate") || null;
+  if(!firstName) throw new Error("Prénom requis");
   const [child] = await db.insert(s.children).values({ careSpaceId: spaceId, firstName, birthDate }).returning();
-  const { membership } = await requireMembership(spaceId);
   await db.insert(s.memberChildren).values({ memberId: membership.id, childId: child.id }).onConflictDoNothing();
   await db.insert(s.activityLogs).values({ careSpaceId: spaceId, actorUserId: session.user.id, action: "CHILD_ADDED", entityType: "child", entityId: child.id });
   revalidatePath("/app");
@@ -149,12 +150,14 @@ export async function updateMemberAccessAction(formData: FormData) {
   await assertMembers(spaceId, [memberId]);
   await assertChildren(adminMembership.id, childIds);
   const [target] = await db.select().from(s.members).where(and(eq(s.members.id, memberId), eq(s.members.careSpaceId, spaceId))).limit(1);
-  if (!target || target.role === "PARENT" || target.role === "PARENT_ADMIN") throw new Error("INVALID_CAREGIVER");
+  if (!target || target.role === "PARENT_ADMIN") throw new Error("INVALID_MEMBER_ACCESS_TARGET");
+  const shopping=formData.get("shopping") === "on";
   const permissions = {
+    children: target.role === "PARENT" && formData.get("children") === "on",
     program: formData.get("program") === "on",
     tasks: formData.get("tasks") === "on",
-    shopping: formData.get("shopping") === "on",
-    cash: formData.get("cash") === "on",
+    shopping,
+    cash: shopping || formData.get("cash") === "on",
     journal: formData.get("journal") === "on",
   };
   await db.transaction(async tx => {

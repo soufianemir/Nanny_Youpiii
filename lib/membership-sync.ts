@@ -60,7 +60,7 @@ export async function syncAcceptedInvitations(userId: string, email: string) {
   for (const invite of result.rows) {
     await db.transaction(async (tx) => {
       const defaults: Record<string, boolean> = invite.role === "PARENT" || invite.role === "PARENT_ADMIN"
-        ? { program: true, shopping: true, cash: true }
+        ? { children: true, program: true, tasks: true, shopping: true, cash: true, journal: true }
         : { program: true, tasks: true, shopping: true, cash: true, journal: true };
 
       let [member] = await tx.insert(s.members).values({

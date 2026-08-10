@@ -5,7 +5,7 @@ import { db } from "@/db";
 import * as s from "@/db/schema";
 import { applyFunding, applyPurchase, applyReimbursement } from "@/lib/cash";
 import { assertChildren, assertMembers, log, money, text, today } from "@/lib/action-helpers";
-import { requireParent, requirePermission, isParentRole } from "@/lib/security";
+import { requirePermission, isParentRole } from "@/lib/security";
 
 export async function addShoppingItemAction(formData: FormData) {
   const spaceId = text(formData, "spaceId");
@@ -97,9 +97,15 @@ export async function completeShoppingPurchaseAction(formData: FormData) {
   revalidatePath("/app");
 }
 
+async function requireParentCash(spaceId:string){
+  const ctx=await requirePermission(spaceId,"cash");
+  if(!isParentRole(ctx.membership.role)) throw new Error("FORBIDDEN");
+  return ctx;
+}
+
 export async function addCashAction(formData: FormData) {
   const spaceId = text(formData, "spaceId");
-  const { session } = await requireParent(spaceId);
+  const { session } = await requireParentCash(spaceId);
   const amount = money(formData.get("amount"));
   if (!Number.isFinite(amount) || amount <= 0) throw new Error("Montant invalide");
   const memberId = text(formData, "memberId") || null;
@@ -126,7 +132,7 @@ export async function addCashAction(formData: FormData) {
 
 export async function reimburseAdvanceAction(formData: FormData) {
   const spaceId = text(formData, "spaceId");
-  const { session } = await requireParent(spaceId);
+  const { session } = await requireParentCash(spaceId);
   const memberId = text(formData, "memberId");
   const amount = money(formData.get("amount"));
   if (!Number.isFinite(amount) || amount <= 0) throw new Error("Montant invalide");
