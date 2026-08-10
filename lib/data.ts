@@ -23,9 +23,16 @@ async function materializeScheduleRules(spaceId:string, selectedDate:string){
   }
 }
 
-export async function spaceSnapshot(spaceId: string, membership: typeof s.members.$inferSelect, selectedDate: string) {
+async function childIdsForMember(memberId:string){
+  return (await db.select({ childId: s.memberChildren.childId }).from(s.memberChildren).where(eq(s.memberChildren.memberId,memberId))).map(x=>x.childId);
+}
+
+export async function spaceSnapshot(spaceId: string, membership: typeof s.members.$inferSelect, selectedDate: string, viewerMembership?: typeof s.members.$inferSelect) {
   const parent = isParentRole(membership.role);
-  const allowedChildIds = (await db.select({ childId: s.memberChildren.childId }).from(s.memberChildren).where(eq(s.memberChildren.memberId, membership.id))).map(x => x.childId);
+  const subjectChildIds = await childIdsForMember(membership.id);
+  const viewerChildIds = viewerMembership ? await childIdsForMember(viewerMembership.id) : null;
+  const allowedChildIds = viewerChildIds ? subjectChildIds.filter(id=>viewerChildIds.includes(id)) : subjectChildIds;
+  const previewRestricted = Boolean(viewerChildIds && allowedChildIds.length < subjectChildIds.length);
   const allChildren = await db.select().from(s.children).where(eq(s.children.careSpaceId, spaceId)).orderBy(asc(s.children.firstName));
   const visibleChildren = allChildren.filter(c => allowedChildIds.includes(c.id));
   const team = parent ? await db.select().from(s.members).where(and(eq(s.members.careSpaceId, spaceId), eq(s.members.status, "ACTIVE"))) : [membership];
@@ -59,21 +66,21 @@ export async function spaceSnapshot(spaceId: string, membership: typeof s.member
   const canShop=hasPermission(membership,"shopping");
   let shopping = canShop&&lists[0] ? await db.select().from(s.shoppingItems).where(eq(s.shoppingItems.shoppingListId, lists[0].id)) : [];
   shopping=shopping.filter(i=>!i.childId||allowedChildIds.includes(i.childId));
-  const canSeeCash=canSeeCashFromPermissions(canShop,hasPermission(membership,"cash"));
+  const canSeeCash=!previewRestricted&&canSeeCashFromPermissions(canShop,hasPermission(membership,"cash"));
   const [cash] = canSeeCash ? await db.select().from(s.cashAccounts).where(eq(s.cashAccounts.careSpaceId, spaceId)).limit(1) : [undefined];
   const advances = !canSeeCash ? [] : parent
     ? await db.select().from(s.caregiverAdvances).where(eq(s.caregiverAdvances.careSpaceId, spaceId))
     : await db.select().from(s.caregiverAdvances).where(and(eq(s.caregiverAdvances.careSpaceId, spaceId), eq(s.caregiverAdvances.memberId, membership.id)));
-  const expenses = !canShop ? [] : parent
+  const expenses = !canShop||previewRestricted ? [] : parent
     ? await db.select().from(s.expenses).where(and(eq(s.expenses.careSpaceId, spaceId), eq(s.expenses.expenseDate, selectedDate))).orderBy(desc(s.expenses.createdAt))
     : await db.select().from(s.expenses).where(and(eq(s.expenses.careSpaceId, spaceId), eq(s.expenses.memberId, membership.id), eq(s.expenses.expenseDate, selectedDate))).orderBy(desc(s.expenses.createdAt));
   let notes = !canJournal ? [] : parent
     ? await db.select().from(s.dailyNotes).where(and(eq(s.dailyNotes.careSpaceId, spaceId), eq(s.dailyNotes.noteDate, selectedDate))).orderBy(desc(s.dailyNotes.createdAt))
     : await db.select().from(s.dailyNotes).where(and(eq(s.dailyNotes.careSpaceId, spaceId), eq(s.dailyNotes.memberId, membership.id), eq(s.dailyNotes.noteDate, selectedDate))).orderBy(desc(s.dailyNotes.createdAt));
-  notes=notes.filter(n=>!n.childId||allowedChildIds.includes(n.childId));
-  const handovers=!canJournal?[]:parent
+  notes=notes.filter(n=>previewRestricted?Boolean(n.childId&&allowedChildIds.includes(n.childId)):(!n.childId||allowedChildIds.includes(n.childId)));
+  const handovers=previewRestricted||!canJournal?[]:parent
     ? await db.select().from(s.handovers).where(and(eq(s.handovers.careSpaceId,spaceId),eq(s.handovers.handoverDate,selectedDate))).orderBy(desc(s.handovers.createdAt))
     : await db.select().from(s.handovers).where(and(eq(s.handovers.careSpaceId,spaceId),eq(s.handovers.handoverDate,selectedDate),or(isNull(s.handovers.toMemberId),eq(s.handovers.toMemberId,membership.id)))).orderBy(desc(s.handovers.createdAt));
-  const activity=isAdminRole(membership.role)?await db.select().from(s.activityLogs).where(eq(s.activityLogs.careSpaceId,spaceId)).orderBy(desc(s.activityLogs.createdAt)).limit(30):[];
-  return { children: visibleChildren, team, shifts, program, tasks, instructions, shopping, cash, advances, expenses, notes, handovers, activity };
+  const activity=isAdminRole(membership.role)&&!viewerMembership?await db.select().from(s.activityLogs).where(eq(s.activityLogs.careSpaceId,spaceId)).orderBy(desc(s.activityLogs.createdAt)).limit(30):[];
+  return { children: visibleChildren, team, shifts, program, tasks, instructions, shopping, cash, advances, expenses, notes, handovers, activity, previewRestricted };
 }
