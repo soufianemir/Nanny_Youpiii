@@ -11,6 +11,18 @@ import { auth } from "@/lib/auth";
 import { authOrganizationIdForSpace, authOrgSlug, latestAuthInvitation } from "@/lib/membership-sync";
 import { isParentRole, requireAdmin, requirePermission, requireUser } from "@/lib/security";
 
+function permissionsFromForm(formData:FormData,role:typeof s.memberRole.enumValues[number]){
+  const shopping=formData.get("shopping")==="on";
+  return {
+    children: role==="PARENT" && formData.get("children")==="on",
+    program: formData.get("program")==="on",
+    tasks: formData.get("tasks")==="on",
+    journal: formData.get("journal")==="on",
+    shopping,
+    cash: shopping || formData.get("cash")==="on",
+  };
+}
+
 export async function createSpaceAction(formData: FormData) {
   const session = await requireUser();
   const spaceName = text(formData, "spaceName");
@@ -46,6 +58,7 @@ export async function inviteMemberAction(formData: FormData) {
   const childIds = formData.getAll("childIds").map(String);
   if (!email || !s.memberRole.enumValues.includes(role)) throw new Error("Invitation invalide");
   await assertChildren(membership.id, childIds);
+  const permissions=permissionsFromForm(formData,role);
 
   const organizationId = await authOrganizationIdForSpace(spaceId);
   const { error } = await auth.organization.inviteMember({ organizationId, email, role: "member" });
@@ -61,10 +74,12 @@ export async function inviteMemberAction(formData: FormData) {
     eq(s.invitations.status, "PENDING"),
   )).limit(1);
 
+  let invitationId:string;
   if (existing) {
+    invitationId=existing.id;
     await db.update(s.invitations).set({ role, childIds, tokenHash, expiresAt: remoteInvite.expiresAt }).where(eq(s.invitations.id, existing.id));
   } else {
-    await db.insert(s.invitations).values({
+    const [created]=await db.insert(s.invitations).values({
       careSpaceId: spaceId,
       email,
       role,
@@ -72,16 +87,11 @@ export async function inviteMemberAction(formData: FormData) {
       childIds,
       invitedBy: session.user.id,
       expiresAt: remoteInvite.expiresAt,
-    });
+    }).returning({id:s.invitations.id});
+    invitationId=created.id;
   }
 
-  await db.insert(s.activityLogs).values({
-    careSpaceId: spaceId,
-    actorUserId: session.user.id,
-    action: "INVITATION_SENT",
-    entityType: "invitation",
-    metadata: { email, role, childIds },
-  });
+  await log(db, spaceId, session.user.id, "INVITATION_SENT", "invitation", invitationId, { email, role, childIds, permissions });
   revalidatePath("/app");
 }
 
@@ -151,15 +161,7 @@ export async function updateMemberAccessAction(formData: FormData) {
   await assertChildren(adminMembership.id, childIds);
   const [target] = await db.select().from(s.members).where(and(eq(s.members.id, memberId), eq(s.members.careSpaceId, spaceId))).limit(1);
   if (!target || target.role === "PARENT_ADMIN") throw new Error("INVALID_MEMBER_ACCESS_TARGET");
-  const shopping=formData.get("shopping") === "on";
-  const permissions = {
-    children: target.role === "PARENT" && formData.get("children") === "on",
-    program: formData.get("program") === "on",
-    tasks: formData.get("tasks") === "on",
-    shopping,
-    cash: shopping || formData.get("cash") === "on",
-    journal: formData.get("journal") === "on",
-  };
+  const permissions = permissionsFromForm(formData,target.role);
   await db.transaction(async tx => {
     await tx.update(s.members).set({ permissions }).where(eq(s.members.id, memberId));
     await tx.delete(s.memberChildren).where(eq(s.memberChildren.memberId, memberId));
