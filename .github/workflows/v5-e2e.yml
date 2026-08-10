@@ -16,6 +16,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 22
-      - run: npm install --no-audit --no-fund
-      - run: npx playwright install --with-deps chromium
+      - run: npm install --no-audit --no-fund >/dev/null 2>&1
+      - run: npm run typecheck
+      - run: npx playwright install --with-deps chromium >/dev/null 2>&1
       - run: npm run test:e2e
