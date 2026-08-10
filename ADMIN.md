@@ -1,6 +1,6 @@
 # Nanny Youpiii — Back-office plateforme
 
-Le back-office est disponible sur `/admin` et reste totalement séparé de l'application Parent / Nounou.
+Le back-office est disponible sur `/admin` et reste totalement séparé de l'application Parent / Nounou. Il est destiné uniquement au support et à la correction d'incidents utilisateurs.
 
 ## Autorisation
 
