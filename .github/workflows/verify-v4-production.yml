@@ -70,7 +70,8 @@ jobs:
             "Tout mangé"
 
           check "/demo?role=parent&section=more&area=shopping" "demo shopping and cash" \
-            "Courses & caisse" \
+            "Courses" \
+            "caisse" \
             "Yaourts" \
             "85,30"
 
