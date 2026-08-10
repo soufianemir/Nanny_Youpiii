@@ -1,21 +1,13 @@
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-
-function configuredAdminEmails() {
-  return new Set(
-    (process.env.PLATFORM_ADMIN_EMAILS || "")
-      .split(",")
-      .map((value) => value.trim().toLowerCase())
-      .filter(Boolean),
-  );
-}
+import { isEmailInPlatformAdminList, parsePlatformAdminEmails } from "@/lib/platform-admin-policy";
 
 export function platformAdminConfigured() {
-  return configuredAdminEmails().size > 0;
+  return parsePlatformAdminEmails(process.env.PLATFORM_ADMIN_EMAILS).size > 0;
 }
 
 export function isPlatformAdminEmail(email: string | null | undefined) {
-  return Boolean(email && configuredAdminEmails().has(email.trim().toLowerCase()));
+  return isEmailInPlatformAdminList(process.env.PLATFORM_ADMIN_EMAILS, email);
 }
 
 export async function requirePlatformAdmin() {
