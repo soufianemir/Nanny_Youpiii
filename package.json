@@ -1,6 +1,6 @@
 {
   "name": "nanny-youpiii-v3",
-  "version": "3.0.0",
+  "version": "5.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "db:push": "drizzle-kit push",
     "db:setup": "npm run db:push",
-    "test": "tsx --test tests/*.test.ts"
+    "test": "tsx --test tests/*.test.ts",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@neondatabase/auth": "latest",
@@ -19,15 +20,20 @@
     "drizzle-orm": "^0.45.2",
     "next": "^16.0.0",
     "pg": "^8.16.3",
+    "qrcode": "^1.5.4",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
+    "web-push": "^3.6.7",
     "zod": "^4.1.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.0",
     "@types/node": "^24.3.0",
     "@types/pg": "^8.15.5",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.1.12",
     "@types/react-dom": "^19.1.9",
+    "@types/web-push": "^3.6.4",
     "dotenv": "^17.2.1",
     "drizzle-kit": "^0.31.4",
     "tsx": "^4.20.5",

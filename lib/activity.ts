@@ -13,9 +13,7 @@ export const activityTypes = [
 
 export type ActivityTypeKey = typeof activityTypes[number]["key"];
 
-export function activityDefinition(key: string) {
-  return activityTypes.find(item => item.key === key) || activityTypes[activityTypes.length - 1];
-}
+export function activityDefinition(key: string) {return activityTypes.find(item => item.key === key) || activityTypes[activityTypes.length - 1];}
 
 export function activityKeyFromStored(type?: string | null, title?: string | null): ActivityTypeKey {
   const haystack = `${type || ""} ${title || ""}`.toLocaleLowerCase("fr-FR");
@@ -31,9 +29,6 @@ export function activityKeyFromStored(type?: string | null, title?: string | nul
   return "OTHER";
 }
 
-export function activityStatusFor(date: string, time: string | null, nowDate: string, nowTime: string): "DONE" | "PLANNED" {
-  if (date < nowDate) return "DONE";
-  if (date > nowDate) return "PLANNED";
-  if (!time) return "PLANNED";
-  return time <= nowTime ? "DONE" : "PLANNED";
-}
+// A scheduled activity never becomes DONE because the clock passed its time.
+// DONE is always an explicit human action (or an activity added as “Maintenant”).
+export function activityStatusFor(timing:"NOW"|"SCHEDULED"):"DONE"|"PLANNED"{return timing==="NOW"?"DONE":"PLANNED";}

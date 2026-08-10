@@ -1,0 +1,13 @@
+import Link from "next/link";
+import { eq } from "drizzle-orm";
+import { db } from "@/db";
+import * as s from "@/db/schema";
+import { updateNotificationPreferencesAction } from "@/app/actions/preferences";
+import { deleteMyAccountAction } from "@/app/actions/account";
+import { PushSettings } from "@/components/app/push-settings";
+import { Card, PageTitle, SectionHeader } from "@/components/ui/primitives";
+
+export async function SettingsPanel({userId}:{userId:string}){
+  const [prefs]=await db.select().from(s.notificationPreferences).where(eq(s.notificationPreferences.userId,userId)).limit(1);
+  return <div className="v4-stack"><PageTitle eyebrow="Compte" title="Notifications & données" description="Des réglages simples, privés et modifiables à tout moment."/><Card><SectionHeader title="Notifications"/><PushSettings/><form action={updateNotificationPreferencesAction} className="v4-settings-group">{[["activities","Activités","Quand une activité est terminée"],["messages","Messages","Quand un adulte écrit à la famille"],["handovers","Gardes","Début et résumé de fin de garde"]].map(([key,label,description])=><label className="v4-setting-row" key={key}><span><strong>{label}</strong><small>{description}</small></span><span className="v4-switch"><input type="checkbox" name={key} defaultChecked={prefs?Boolean(prefs[key as "activities"|"messages"|"handovers"]):true}/><span/></span></label>)}<button className="btn soft full">Enregistrer mes préférences</button></form></Card><Card><SectionHeader title="Vie privée & RGPD"/><div className="v4-menu-list"><Link className="v4-menu-row" href="/api/account/export"><span className="v4-menu-row-copy"><strong>Exporter mes données</strong><small>Télécharger un fichier JSON contenant les données liées à votre compte.</small></span></Link><Link className="v4-menu-row" href="/privacy"><span className="v4-menu-row-copy"><strong>Confidentialité</strong><small>Ce que Nanny Youpiii collecte et pourquoi.</small></span></Link><Link className="v4-menu-row" href="/terms"><span className="v4-menu-row-copy"><strong>Conditions d’utilisation</strong><small>Règles essentielles du service.</small></span></Link></div></Card><Card tone="soft"><SectionHeader title="Supprimer mon compte"/><p className="v5-help">Cette action supprime votre compte et vos espaces dont vous êtes administrateur. Les éléments historiques conservés dans une autre famille sont anonymisés lorsque nécessaire.</p><form action={deleteMyAccountAction} className="v4-form"><div className="v4-field"><label>Écrivez SUPPRIMER pour confirmer</label><input name="confirm" autoComplete="off"/></div><button className="btn danger full">Supprimer définitivement mon compte</button></form></Card></div>;
+}

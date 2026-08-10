@@ -7,14 +7,12 @@ test("les types quotidiens sont compréhensibles et Autre reste disponible",()=>
   assert.equal(activityTypes.at(-1)?.label,"Autre");
 });
 
-test("une activité passée alimente le journal automatiquement",()=>{
-  assert.equal(activityStatusFor("2026-08-09","18:00","2026-08-10","19:30"),"DONE");
-  assert.equal(activityStatusFor("2026-08-10","18:00","2026-08-10","19:30"),"DONE");
+test("seule une activité saisie comme Maintenant est réalisée immédiatement",()=>{
+  assert.equal(activityStatusFor("NOW"),"DONE");
 });
 
-test("une activité future reste dans le planning",()=>{
-  assert.equal(activityStatusFor("2026-08-10","20:00","2026-08-10","19:30"),"PLANNED");
-  assert.equal(activityStatusFor("2026-08-11","09:00","2026-08-10","19:30"),"PLANNED");
+test("une activité programmée reste prévue même quand son heure passe",()=>{
+  assert.equal(activityStatusFor("SCHEDULED"),"PLANNED");
 });
 
 test("les anciennes activités restent éditables avec le bon type",()=>{

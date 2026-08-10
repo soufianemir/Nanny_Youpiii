@@ -1,0 +1,10 @@
+import type { members as membersTable, spaceMessages as messagesTable } from "@/db/schema";
+import { sendMessageAction, deleteMessageAction } from "@/app/actions/messages";
+import { isParentRole } from "@/lib/security";
+import { Avatar, Card, EmptyState, PageTitle } from "@/components/ui/primitives";
+
+type Member=typeof membersTable.$inferSelect;type Message=typeof messagesTable.$inferSelect;
+export function MessagesPanel({spaceId,messages,team,currentMember,memberName}:{spaceId:string;messages:Message[];team:Member[];currentMember:Member;memberName:(member:Member)=>string}){
+  const author=(id:string)=>team.find(member=>member.id===id);
+  return <div className="v4-stack"><PageTitle eyebrow="Famille" title="Messages" description="Des messages courts pour ce qui ne mérite ni une consigne permanente ni une activité."/><Card>{messages.length?<div className="v5-messages">{messages.map(message=>{const member=author(message.authorMemberId);const mine=message.authorMemberId===currentMember.id;return <article className={`v5-message ${mine?"mine":""}`} key={message.id}><div className="v5-message-head">{member&&<Avatar name={memberName(member)} size="sm"/>}<span><strong>{member?memberName(member):"Membre"}</strong><small>{new Intl.DateTimeFormat("fr-FR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}).format(message.createdAt)}</small></span>{(mine||isParentRole(currentMember.role))&&<form action={deleteMessageAction}><input type="hidden" name="spaceId" value={spaceId}/><input type="hidden" name="messageId" value={message.id}/><button className="v5-link-danger">Supprimer</button></form>}</div><p>{message.text}</p></article>})}</div>:<EmptyState title="Aucun message" description="Utilisez cet espace pour une information courte entre adultes." icon="journal"/>}</Card><Card tone="soft"><form action={sendMessageAction} className="v5-message-compose"><input type="hidden" name="spaceId" value={spaceId}/><textarea name="text" required maxLength={1200} rows={3} placeholder="Ex. Je serai 10 minutes en retard…"/><button className="btn brandbtn">Envoyer</button></form></Card></div>;
+}
