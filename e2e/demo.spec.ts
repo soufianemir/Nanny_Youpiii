@@ -9,7 +9,7 @@ test("le parcours quotidien reste compréhensible sur mobile",async({page})=>{
   await expect(page.getByText("Une seule vue pour les activités, les routines et les horaires de garde.")).toBeVisible();
   await expect(page.getByText("Journée",{exact:true})).toBeVisible();
   await page.getByRole("navigation",{name:"Navigation principale"}).getByRole("link",{name:"Courses",exact:true}).click();
-  await expect(page.getByRole("heading",{name:"Courses",exact:true})).toBeVisible();
+  await expect(page.getByRole("heading",{name:"Courses",exact:true,level:1})).toBeVisible();
   await page.getByRole("navigation",{name:"Navigation principale"}).getByRole("link",{name:"Aujourd’hui",exact:true}).click();
   await expect(page.getByRole("heading",{name:/Bonjour Camille/i})).toBeVisible();
 });
