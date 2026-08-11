@@ -51,5 +51,5 @@ jobs:
       - name: Gate build
         shell: bash
         run: test "$(cat build.exit)" = "0"
-      - run: npx playwright install --with-deps chromium >/dev/null 2>&1
+      - run: npx playwright install --with-deps webkit >/dev/null 2>&1
       - run: npm run test:e2e
