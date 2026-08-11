@@ -1,0 +1,20 @@
+/* V5.7.1 — isolate the real app palette from the public showcase */
+.v4-shell{
+  color:var(--ink);
+  background:var(--bg);
+  color-scheme:light;
+}
+.v4-shell .v4-app-header,
+.v4-shell .v4-main{
+  color:var(--ink);
+}
+.v57-marketing{
+  color:var(--m-ink);
+  color-scheme:light;
+}
+/* Dark marketing panels keep their intentional light typography. */
+.v57-marketing .v57-privacy-inner,
+.v57-marketing .v57-final-cta,
+.v57-marketing .v57-feature-card.is-dark{
+  color:#fff;
+}

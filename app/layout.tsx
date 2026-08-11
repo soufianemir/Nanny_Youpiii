@@ -6,6 +6,7 @@ import "./v51.css";
 import "./v53.css";
 import "./v54.css";
 import "./v57.css";
+import "./v571.css";
 import "@neondatabase/auth-ui/css";
 import type { Metadata, Viewport } from "next";
 import { NeonAuthProvider } from "@/components/neon-auth-provider";

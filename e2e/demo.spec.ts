@@ -4,7 +4,10 @@ test("le parcours quotidien reste compréhensible sur mobile",async({page})=>{
   await page.goto("/demo?role=parent&section=today");
   await expect(page.getByRole("heading",{name:"Testez Youpiii des deux côtés."})).toBeVisible();
   await expect(page.getByRole("link",{name:/Nora · nounou/i})).toBeVisible();
-  await expect(page.getByRole("heading",{name:/Bonjour Camille/i})).toBeVisible();
+  const greeting=page.getByRole("heading",{name:/Bonjour Camille/i});
+  await expect(greeting).toBeVisible();
+  await expect(greeting).toHaveCSS("color","rgb(32, 32, 30)");
+  await expect(page.getByText("Nanny Youpiii",{exact:true}).first()).toHaveCSS("color","rgb(32, 32, 30)");
   const nav=page.getByRole("navigation",{name:"Navigation principale"});
   await expect(nav).toBeVisible();
   await nav.getByRole("link",{name:"Planning",exact:true}).click();
@@ -14,7 +17,7 @@ test("le parcours quotidien reste compréhensible sur mobile",async({page})=>{
   await page.getByRole("navigation",{name:"Navigation principale"}).getByRole("link",{name:"Courses",exact:true}).click();
   await expect(page.getByRole("heading",{name:"Courses",exact:true,level:1})).toBeVisible();
   await page.getByRole("navigation",{name:"Navigation principale"}).getByRole("link",{name:"Aujourd’hui",exact:true}).click();
-  await expect(page.getByRole("heading",{name:/Bonjour Camille/i})).toBeVisible();
+  await expect(page.getByRole("heading",{name:/Bonjour Camille/i})).toHaveCSS("color","rgb(32, 32, 30)");
 });
 
 test("la vue nounou reste centrée sur la journée",async({page})=>{
