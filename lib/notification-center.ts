@@ -1,8 +1,7 @@
 export function notificationDestination(type:string,careSpaceId:string){
   const base=`/app?space=${encodeURIComponent(careSpaceId)}`;
   if(type==="MESSAGE")return `${base}&section=more&area=messages`;
-  if(type==="SHIFT_ENDED")return `${base}&section=more&area=history`;
-  if(type==="ACTIVITY_DONE"||type==="SHIFT_STARTED")return `${base}&section=today`;
+  if(type==="SHIFT_ENDED"||type==="ACTIVITY_DONE"||type==="SHIFT_STARTED")return `${base}&section=today`;
   return `${base}&section=today`;
 }
 
