@@ -4,17 +4,7 @@ import { Card, PageTitle, SectionHeader } from "@/components/ui/primitives";
 import { SignOutButton } from "@/components/auth-forms";
 
 type Query=(extra:Record<string,string>)=>string;type MenuItem={area:string;title:string;description:string;icon:IconName;visible:boolean};
-export function MoreHub({q,parent,canChildren,canTeam,canShopping,canCash,canRules,showSession=false,personalTools=true}:{q:Query;parent:boolean;canChildren:boolean;canTeam:boolean;canShopping:boolean;canCash:boolean;canRules:boolean;showSession?:boolean;personalTools?:boolean}){
-  const allItems:MenuItem[]=[
-    {area:"messages",title:"Messages",description:"Échanges courts entre les adultes",icon:"journal",visible:personalTools},
-    {area:"children",title:"Enfants",description:"Urgence, école, allergies et habitudes",icon:"child",visible:parent&&canChildren},
-    {area:"team",title:"Équipe & gardes",description:"Intervenants, horaires et invitations",icon:"people",visible:parent&&canTeam},
-    {area:"rules",title:"Consignes & routines",description:"Règles et routines réutilisables",icon:"alert",visible:parent&&canRules},
-    {area:"shopping",title:"Courses",description:"Liste, achats et caisse",icon:"shopping",visible:canShopping},
-    {area:"cash",title:"Caisse",description:"Solde, avances et remboursements",icon:"wallet",visible:canCash&&!canShopping},
-    {area:"reports",title:"Heures & export",description:"Récapitulatif mensuel des gardes",icon:"calendar",visible:personalTools},
-    {area:"settings",title:"Notifications & données",description:"Push, confidentialité, export et compte",icon:"settings",visible:personalTools},
-  ];
-  const items=allItems.filter(item=>item.visible);
+export function MoreHub({q,parent,canChildren,canTeam,canRules,canJournal,showSession=false,personalTools=true}:{q:Query;parent:boolean;canChildren:boolean;canTeam:boolean;canRules:boolean;canJournal:boolean;showSession?:boolean;personalTools?:boolean}){
+  const allItems:MenuItem[]=[{area:"messages",title:"Messages",description:"Échanges courts entre les adultes",icon:"journal",visible:personalTools},{area:"history",title:"Transmissions",description:"Historique des activités réalisées et résumés de garde",icon:"handover",visible:canJournal},{area:"children",title:"Enfants",description:"Urgence, école, allergies et habitudes",icon:"child",visible:parent&&canChildren},{area:"team",title:"Équipe",description:"Intervenants, invitations et accès",icon:"people",visible:parent&&canTeam},{area:"rules",title:"Consignes & routines",description:"Règles et routines réutilisables",icon:"alert",visible:parent&&canRules},{area:"reports",title:"Heures & export",description:"Récapitulatif mensuel des gardes",icon:"calendar",visible:personalTools},{area:"settings",title:"Notifications & données",description:"Push, confidentialité, export et compte",icon:"settings",visible:personalTools}];const items=allItems.filter(item=>item.visible);
   return <div className="v4-stack"><PageTitle eyebrow="Nanny Youpiii" title="Plus" description={parent?"Les outils moins fréquents restent ici pour garder le quotidien simple.":"Vos outils utiles, sans réglages inutiles."}/><Card><div className="v4-menu-list">{items.map(item=><Link className="v4-menu-row" key={item.area} href={q({section:"more",area:item.area})}><span className="v4-menu-row-icon"><Icon name={item.icon}/></span><span className="v4-menu-row-copy"><strong>{item.title}</strong><small>{item.description}</small></span><Icon name="chevronRight" size={18}/></Link>)}</div></Card>{showSession&&personalTools&&<Card tone="soft"><SectionHeader title="Session"/><SignOutButton/></Card>}</div>;
 }

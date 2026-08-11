@@ -6,8 +6,10 @@ test("le parcours quotidien reste compréhensible sur mobile",async({page})=>{
   const nav=page.getByRole("navigation",{name:"Navigation principale"});
   await expect(nav).toBeVisible();
   await nav.getByRole("link",{name:"Planning",exact:true}).click();
-  await expect(page.getByText("Une activité reste prévue tant qu’un adulte ne la marque pas faite.")).toBeVisible();
-  await expect(page.getByText("Journée")).toBeVisible();
+  await expect(page.getByText("Ce qui est prévu aujourd’hui et à venir. Les parents règlent aussi ici les horaires de garde.")).toBeVisible();
+  await expect(page.getByText("Journée",{exact:true})).toBeVisible();
+  await page.getByRole("navigation",{name:"Navigation principale"}).getByRole("link",{name:"Courses",exact:true}).click();
+  await expect(page.getByRole("heading",{name:"Courses & caisse"})).toBeVisible();
   await page.getByRole("navigation",{name:"Navigation principale"}).getByRole("link",{name:"Aujourd’hui",exact:true}).click();
   await expect(page.getByRole("heading",{name:/Bonjour Camille/i})).toBeVisible();
 });

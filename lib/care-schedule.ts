@@ -1,4 +1,5 @@
 export const CARE_PERIOD_PREFIX="__CARE_PERIOD__:";
+export const DAY_OFF_SHIFT_NOTE="__NANNY_DAY_OFF__";
 
 const ISO_DATE=/^\d{4}-\d{2}-\d{2}$/;
 
@@ -13,7 +14,7 @@ export function parseCarePeriodNote(note:string|null|undefined){
   return {start,end};
 }
 
-export function datesInPeriod(start:string,end:string,maxDays=550){
+export function datesInPeriod(start:string,end:string,maxDays=1826){
   if(!ISO_DATE.test(start)||!ISO_DATE.test(end)||start>end)throw new Error("Période invalide");
   const cursor=new Date(`${start}T12:00:00Z`);
   const last=new Date(`${end}T12:00:00Z`);

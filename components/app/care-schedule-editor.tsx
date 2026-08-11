@@ -2,99 +2,31 @@
 
 import { useState } from "react";
 import { addShiftAction, removePlannedShiftAction, saveCarePeriodAction, updatePlannedShiftAction } from "@/app/actions/schedule";
+import { cancelShiftDateAction } from "@/app/actions/care-exception";
 import { schoolYearPeriod } from "@/lib/care-schedule";
 import { Icon } from "@/components/ui/icons";
 
 export type CareDayInput={weekday:number;label:string;active:boolean;start:string;end:string};
 export type CareException={id:string;date:string;start:string;end:string};
+export type CareDayOff={id:string;date:string;start:string;end:string};
+const shortDay=(label:string)=>label.slice(0,2);
 
-export function CareScheduleEditor({
-  spaceId,
-  memberId,
-  selectedDate,
-  periodStart,
-  periodEnd,
-  initialDays,
-  exceptions,
-  defaultOpen=false,
-}:{
-  spaceId:string;
-  memberId:string;
-  selectedDate:string;
-  periodStart:string;
-  periodEnd:string;
-  initialDays:CareDayInput[];
-  exceptions:CareException[];
-  defaultOpen?:boolean;
-}){
-  const [start,setStart]=useState(periodStart);
-  const [end,setEnd]=useState(periodEnd);
-  const [days,setDays]=useState(initialDays);
-  const schoolYear=schoolYearPeriod(selectedDate);
-  const schoolLabel=`Année scolaire ${schoolYear.start.slice(0,4)}–${schoolYear.end.slice(0,4)}`;
-
-  const updateDay=(weekday:number,patch:Partial<CareDayInput>)=>{
-    setDays(values=>values.map(day=>day.weekday===weekday?{...day,...patch}:day));
-  };
-
-  return <div className="v4-care-editor">
-    <form action={saveCarePeriodAction} className="v4-form">
-      <input type="hidden" name="spaceId" value={spaceId}/>
-      <input type="hidden" name="memberId" value={memberId}/>
-      <div className="v4-care-period">
-        <div className="v4-field"><label>Du</label><input name="periodStart" type="date" value={start} onChange={event=>setStart(event.target.value)} required/></div>
-        <div className="v4-field"><label>Au</label><input name="periodEnd" type="date" value={end} onChange={event=>setEnd(event.target.value)} required/></div>
-        <button type="button" className="btn soft" onClick={()=>{setStart(schoolYear.start);setEnd(schoolYear.end)}}><Icon name="calendar"/> {schoolLabel}</button>
-      </div>
-      <div className="v4-care-week">
-        {days.map(day=><div className={`v4-care-day ${day.active?"is-active":"is-off"}`} key={day.weekday}>
-          <label className="v4-care-day-toggle">
-            <input type="checkbox" name={`day-${day.weekday}`} checked={day.active} onChange={event=>updateDay(day.weekday,{active:event.target.checked})}/>
-            <strong>{day.label}</strong>
-          </label>
-          <input aria-label={`Début ${day.label}`} name={`start-${day.weekday}`} type="time" value={day.start} disabled={!day.active} onChange={event=>updateDay(day.weekday,{start:event.target.value})}/>
-          <span>→</span>
-          <input aria-label={`Fin ${day.label}`} name={`end-${day.weekday}`} type="time" value={day.end} disabled={!day.active} onChange={event=>updateDay(day.weekday,{end:event.target.value})}/>
-        </div>)}
-      </div>
-      <p className="v4-form-help">Cochez uniquement les jours de garde. Un seul enregistrement applique tout le planning sur la période choisie.</p>
-      <button className="btn brandbtn full"><Icon name="check"/> Enregistrer les horaires</button>
+export function CareScheduleEditor({spaceId,memberId,selectedDate,periodStart,periodEnd,initialDays,exceptions,daysOff=[],defaultOpen=false}:{spaceId:string;memberId:string;selectedDate:string;periodStart:string;periodEnd:string;initialDays:CareDayInput[];exceptions:CareException[];daysOff?:CareDayOff[];defaultOpen?:boolean}){
+  const [start,setStart]=useState(periodStart);const [end,setEnd]=useState(periodEnd);const [days,setDays]=useState(initialDays);const schoolYear=schoolYearPeriod(selectedDate);const schoolLabel=`Année scolaire ${schoolYear.start.slice(0,4)}–${schoolYear.end.slice(0,4)}`;const updateDay=(weekday:number,patch:Partial<CareDayInput>)=>setDays(values=>values.map(day=>day.weekday===weekday?{...day,...patch}:day));const activeDays=days.filter(day=>day.active);
+  return <div className="v4-care-editor v53-care-editor">
+    <form action={saveCarePeriodAction} className="v4-form v53-care-period-form"><input type="hidden" name="spaceId" value={spaceId}/><input type="hidden" name="memberId" value={memberId}/>
+      <div className="v53-care-label"><strong>Période</strong><button type="button" onClick={()=>{setStart(schoolYear.start);setEnd(schoolYear.end)}}>{schoolLabel}</button></div>
+      <div className="v53-period-range"><label><span>Début</span><input name="periodStart" type="date" value={start} onChange={event=>setStart(event.target.value)} required/></label><span className="v53-range-arrow">→</span><label><span>Fin</span><input name="periodEnd" type="date" value={end} onChange={event=>setEnd(event.target.value)} required/></label></div>
+      <div className="v53-care-label"><strong>Jours travaillés</strong><small>Choisissez la semaine type</small></div>
+      <div className="v53-week-pills">{days.map(day=><label key={day.weekday}><input type="checkbox" name={`day-${day.weekday}`} checked={day.active} onChange={event=>updateDay(day.weekday,{active:event.target.checked})}/><span>{shortDay(day.label)}</span></label>)}</div>
+      <div className="v53-active-days">{activeDays.map(day=><div className="v53-day-time" key={day.weekday}><strong>{day.label}</strong><div><input aria-label={`Début ${day.label}`} name={`start-${day.weekday}`} type="time" value={day.start} onChange={event=>updateDay(day.weekday,{start:event.target.value})}/><span>→</span><input aria-label={`Fin ${day.label}`} name={`end-${day.weekday}`} type="time" value={day.end} onChange={event=>updateDay(day.weekday,{end:event.target.value})}/></div></div>)}{!activeDays.length&&<div className="v53-no-day">Sélectionnez au moins un jour de garde.</div>}</div>
+      <button className="btn brandbtn full v53-save-schedule"><Icon name="check"/> Enregistrer la semaine type</button>
     </form>
-
-    <details className="v4-care-exceptions" open={defaultOpen}>
-      <summary><span><Icon name="plus"/> Garde ponctuelle ou exception</span><Icon name="chevronRight" size={17}/></summary>
-      <div className="v4-care-exception-body">
-        <p className="v4-form-help">Pour ajouter un jour isolé ou changer les horaires d’une seule date. Cette garde remplace automatiquement l’horaire régulier du jour.</p>
-        <form action={addShiftAction} className="v4-care-exception-new">
-          <input type="hidden" name="spaceId" value={spaceId}/>
-          <input type="hidden" name="memberId" value={memberId}/>
-          <input aria-label="Date de la garde" name="date" type="date" defaultValue={selectedDate} required/>
-          <input aria-label="Heure de début" name="start" type="time" defaultValue="16:00" required/>
-          <span>→</span>
-          <input aria-label="Heure de fin" name="end" type="time" defaultValue="18:30" required/>
-          <button className="btn soft"><Icon name="plus"/> Ajouter</button>
-        </form>
-        {exceptions.length>0&&<div className="v4-care-exception-list">
-          <strong className="v4-care-exception-title">Gardes ponctuelles prévues</strong>
-          {exceptions.map(exception=><div className="v4-care-exception-row" key={exception.id}>
-            <form action={updatePlannedShiftAction} className="v4-care-exception-edit">
-              <input type="hidden" name="spaceId" value={spaceId}/>
-              <input type="hidden" name="memberId" value={memberId}/>
-              <input type="hidden" name="shiftId" value={exception.id}/>
-              <input name="date" type="date" defaultValue={exception.date} aria-label="Date"/>
-              <input name="start" type="time" defaultValue={exception.start} aria-label="Début"/>
-              <span>→</span>
-              <input name="end" type="time" defaultValue={exception.end} aria-label="Fin"/>
-              <button className="v4-icon-button" aria-label="Enregistrer la modification"><Icon name="check"/></button>
-            </form>
-            <form action={removePlannedShiftAction}>
-              <input type="hidden" name="spaceId" value={spaceId}/>
-              <input type="hidden" name="shiftId" value={exception.id}/>
-              <button className="v4-icon-button" aria-label="Supprimer cette garde"><Icon name="close"/></button>
-            </form>
-          </div>)}
-        </div>}
-      </div>
+    <details className="v4-care-exceptions v53-exceptions" open={defaultOpen}><summary><span><Icon name="calendar"/> Ajuster une journée</span><small>Ponctuel, jour férié, absence</small><Icon name="chevronRight" size={17}/></summary><div className="v53-exception-grid">
+      <section><strong>Ajouter ou remplacer une garde</strong><p>Pour une date isolée, ces horaires remplacent automatiquement la semaine type.</p><form action={addShiftAction} className="v53-one-day-form"><input type="hidden" name="spaceId" value={spaceId}/><input type="hidden" name="memberId" value={memberId}/><input name="date" type="date" defaultValue={selectedDate} required aria-label="Date de la garde"/><div><input name="start" type="time" defaultValue="16:00" required aria-label="Heure de début"/><span>→</span><input name="end" type="time" defaultValue="18:30" required aria-label="Heure de fin"/></div><button className="btn soft full">Ajouter / remplacer</button></form></section>
+      <section className="v53-day-off-card"><strong>Pas de garde ce jour</strong><p>Idéal pour un jour férié, des vacances ou une absence exceptionnelle.</p><form action={cancelShiftDateAction} className="v53-day-off-form"><input type="hidden" name="spaceId" value={spaceId}/><input type="hidden" name="memberId" value={memberId}/><input name="date" type="date" defaultValue={selectedDate} required/><button className="btn soft full">Marquer sans garde</button></form></section>
+    </div>
+    {(exceptions.length>0||daysOff.length>0)&&<div className="v53-exception-list">{exceptions.map(exception=><div className="v53-exception-row" key={exception.id}><form action={updatePlannedShiftAction}><input type="hidden" name="spaceId" value={spaceId}/><input type="hidden" name="memberId" value={memberId}/><input type="hidden" name="shiftId" value={exception.id}/><input name="date" type="date" defaultValue={exception.date}/><input name="start" type="time" defaultValue={exception.start}/><span>→</span><input name="end" type="time" defaultValue={exception.end}/><button className="v4-icon-button" aria-label="Enregistrer"><Icon name="check"/></button></form><form action={removePlannedShiftAction}><input type="hidden" name="spaceId" value={spaceId}/><input type="hidden" name="shiftId" value={exception.id}/><button className="v4-icon-button" aria-label="Supprimer"><Icon name="close"/></button></form></div>)}{daysOff.map(day=><div className="v53-day-off-row" key={day.id}><span><Icon name="ban" size={17}/><strong>{new Intl.DateTimeFormat("fr-FR",{weekday:"short",day:"numeric",month:"short"}).format(new Date(`${day.date}T12:00:00`))}</strong><small>Pas de garde</small></span>{day.start!=="00:00"&&<form action={addShiftAction}><input type="hidden" name="spaceId" value={spaceId}/><input type="hidden" name="memberId" value={memberId}/><input type="hidden" name="date" value={day.date}/><input type="hidden" name="start" value={day.start}/><input type="hidden" name="end" value={day.end}/><button className="btn soft">Réactiver</button></form>}</div>)}</div>}
     </details>
   </div>;
 }
