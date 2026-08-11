@@ -4,7 +4,7 @@ export type IconName =
   | "sun" | "calendar" | "journal" | "menu" | "plus" | "check" | "chevronLeft" | "chevronRight"
   | "child" | "people" | "shopping" | "wallet" | "settings" | "clock" | "alert" | "ban" | "headphones"
   | "school" | "meal" | "park" | "bath" | "bag" | "moon" | "home" | "task" | "note" | "handover"
-  | "activity" | "close" | "eye" | "more" | "pill" | "heart";
+  | "activity" | "close" | "eye" | "more" | "pill" | "heart" | "bell";
 
 const paths: Record<IconName, React.ReactNode> = {
   sun: <><circle cx="12" cy="12" r="3.5"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42"/></>,
@@ -40,6 +40,7 @@ const paths: Record<IconName, React.ReactNode> = {
   more: <><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></>,
   pill: <><path d="m8 16 8-8a4 4 0 1 1 5.7 5.7l-8 8A4 4 0 0 1 8 16Z"/><path d="m12 12 5.7 5.7"/></>,
   heart: <><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z"/></>,
+  bell: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></>,
 };
 
 export function Icon({name,size=20,...props}:{name:IconName;size?:number}&SVGProps<SVGSVGElement>){
