@@ -1,5 +1,6 @@
 /* V5.7.1 — isolate the real app palette from the public showcase */
 /* Production redeploy after Vercel build-rate window. */
+/* Retry requested at 17:34 Europe/Paris. */
 .v4-shell{
   color:var(--ink);
   background:var(--bg);
