@@ -5,7 +5,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import * as s from "@/db/schema";
 import { assertChildren, assertMembers, assertMembersCanAccessChildren, text } from "@/lib/action-helpers";
-import { activityDefinition, activityStatusFor } from "@/lib/activity";
+import { ACTIVITY_LIBRARY_ROUTINE_NAME, MAX_ACTIVITY_PRESETS, activityDefinition, activityKeyFromStored, activityStatusFor } from "@/lib/activity";
 import { isParentRole, requirePermission } from "@/lib/security";
 import { notifySpaceUsers, trackProductEvent } from "@/lib/notifications";
 
@@ -14,13 +14,37 @@ async function spaceClock(spaceId:string){const [space]=await db.select({timezon
 async function activityAccess(spaceId:string,itemId:string,membership:typeof s.members.$inferSelect){const [item]=await db.select().from(s.programItems).where(and(eq(s.programItems.id,itemId),eq(s.programItems.careSpaceId,spaceId))).limit(1);if(!item)throw new Error("ACTIVITY_NOT_FOUND");if(!isParentRole(membership.role)){const [assigned]=await db.select().from(s.programAssignees).where(and(eq(s.programAssignees.programItemId,itemId),eq(s.programAssignees.memberId,membership.id))).limit(1);if(!assigned)throw new Error("FORBIDDEN");}return item;}
 async function defaultCaregivers(spaceId:string,childIds:string[],date:string,start:string|null){const candidates=await db.select().from(s.members).where(and(eq(s.members.careSpaceId,spaceId),eq(s.members.status,"ACTIVE")));let caregivers=candidates.filter(member=>!isParentRole(member.role));if(!caregivers.length)return [];if(childIds.length){const links=await db.select().from(s.memberChildren).where(inArray(s.memberChildren.memberId,caregivers.map(member=>member.id)));caregivers=caregivers.filter(member=>childIds.every(childId=>links.some(link=>link.memberId===member.id&&link.childId===childId)));}if(!caregivers.length)return [];if(start){const shifts=await db.select().from(s.shifts).where(and(eq(s.shifts.careSpaceId,spaceId),eq(s.shifts.shiftDate,date),inArray(s.shifts.memberId,caregivers.map(member=>member.id))));const onDuty=shifts.filter(shift=>shift.status!=="CANCELLED"&&shift.plannedStart<=start&&shift.plannedEnd>=start).map(shift=>shift.memberId);if(onDuty.length)return [...new Set(onDuty)];}return caregivers.map(member=>member.id);}
 
+function cleanPresetNames(formData:FormData){
+  const names=formData.getAll("names").map(String).map(name=>name.trim().replace(/\s+/g," ").slice(0,60)).filter(Boolean);
+  const unique:string[]=[];const seen=new Set<string>();
+  for(const name of names){const key=name.toLocaleLowerCase("fr-FR");if(key==="autre"||seen.has(key))continue;seen.add(key);unique.push(name);}
+  if(!unique.length)throw new Error("Gardez au moins une activité régulière");
+  if(unique.length>MAX_ACTIVITY_PRESETS)throw new Error(`Maximum ${MAX_ACTIVITY_PRESETS} activités régulières`);
+  return unique;
+}
+
+export async function saveActivityLibraryAction(formData:FormData){
+  const spaceId=text(formData,"spaceId");const {session,membership}=await requirePermission(spaceId,"program");if(!isParentRole(membership.role))throw new Error("FORBIDDEN");const names=cleanPresetNames(formData);
+  await db.transaction(async tx=>{
+    let [library]=await tx.select().from(s.routines).where(and(eq(s.routines.careSpaceId,spaceId),eq(s.routines.name,ACTIVITY_LIBRARY_ROUTINE_NAME))).limit(1);
+    if(!library)[library]=await tx.insert(s.routines).values({careSpaceId:spaceId,name:ACTIVITY_LIBRARY_ROUTINE_NAME,description:"Configuration interne des activités régulières",createdBy:session.user.id}).returning();
+    await tx.delete(s.routineItems).where(eq(s.routineItems.routineId,library.id));
+    await tx.insert(s.routineItems).values(names.map((name,position)=>({routineId:library.id,position,title:name,description:null})));
+  });
+  await trackProductEvent("ACTIVITY_LIBRARY_UPDATED",session.user.id,spaceId,{count:names.length});revalidatePath("/app");
+}
+
 function activityChoice(formData:FormData){
   const raw=text(formData,"activityType")||"OTHER";
-  const typed=text(formData,"customTitle").trim().slice(0,80);
-  if(typed)return {key:"OTHER",title:typed};
-  if(raw.startsWith("CUSTOM::")){
-    const title=raw.slice("CUSTOM::".length).trim().slice(0,80);
-    return {key:"OTHER",title:title||"Autre"};
+  if(raw==="OTHER"){
+    const title=text(formData,"customTitle").trim().replace(/\s+/g," ").slice(0,80);
+    if(!title)throw new Error("Nommez l’activité ponctuelle");
+    return {key:activityKeyFromStored("",title),title};
+  }
+  if(raw.startsWith("PRESET::")||raw.startsWith("CURRENT::")){
+    const title=raw.slice(raw.indexOf("::")+2).trim().slice(0,80);
+    if(!title)throw new Error("Activité invalide");
+    return {key:activityKeyFromStored("",title),title};
   }
   const definition=activityDefinition(raw);
   return {key:definition.key,title:definition.key==="OTHER"?"Autre":definition.label};
